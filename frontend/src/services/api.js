@@ -49,3 +49,27 @@ export const api = {
   },
 };
 
+export const queueApi = {
+  listQueues() {
+    return request("/queues");
+  },
+  getQueue(queueId) {
+    return request(`/queues/${queueId}`);
+  },
+  joinQueue(queueId) {
+    return request(`/queues/${queueId}/join`, { method: "POST" });
+  },
+  myTickets() {
+    return request("/tickets/me");
+  },
+  getTicket(ticketId) {
+    return request(`/tickets/${ticketId}`);
+  },
+  leaveTicket(ticketId) {
+    return request(`/tickets/${ticketId}`, { method: "DELETE" });
+  },
+  serveNext(queueId) {
+    return request(`/queues/${queueId}/next`, { method: "POST" });
+  },
+};
+
