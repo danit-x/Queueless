@@ -4,60 +4,100 @@ import { useAuth } from "../context/AuthContext";
 import "./Login.css";
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const YOUR_NUMBER = 27;
 
-const FEATURES = [
-  { icon: "📲", text: "Customers join the queue from their phone" },
-  { icon: "📣", text: "Call the next number with one tap" },
-  { icon: "🔔", text: "Customers get an alert when their turn is near" },
+const PLACES = [
+  { icon: "💈", label: "Barber" },
+  { icon: "🍽️", label: "Restaurant" },
+  { icon: "🩺", label: "Clinic" },
+  { icon: "🏛️", label: "Gov. office" },
+  { icon: "🔧", label: "Repair shop" },
 ];
 
-// Small animated "display board" for the brand panel (decoration only).
-function QueueBoard() {
-  const [serving, setServing] = useState(23);
-
-  useEffect(() => {
-    const id = setInterval(() => setServing((n) => (n >= 26 ? 23 : n + 1)), 3000);
-    return () => clearInterval(id);
-  }, []);
-
-  const yourNumber = 27;
-  const ahead = yourNumber - serving - 1;
-
-  return (
-    <div className="ql-board" aria-hidden="true">
-      <div className="ql-board-row">
-        <div>
-          <p className="ql-board-label">Currently serving</p>
-          <p key={serving} className="ql-board-number ql-pop">
-            A{serving}
-          </p>
-        </div>
-        <div className="ql-board-ticket">
-          <p className="ql-board-label">Your number</p>
-          <p className="ql-board-mine">A{yourNumber}</p>
-        </div>
-      </div>
-      <div className="ql-board-line">
-        {Array.from({ length: yourNumber - serving }).map((_, i) => (
-          <span key={i} className={i === 0 ? "ql-dot ql-dot-now" : "ql-dot"} />
-        ))}
-        <span className="ql-dot ql-dot-you" />
-      </div>
-      <p className={ahead <= 1 ? "ql-board-status ql-soon" : "ql-board-status"}>
-        {ahead <= 1 ? "🔔 Your turn is coming soon" : `${ahead} people ahead of you`}
-      </p>
-    </div>
+function EyeIcon({ open }) {
+  return open ? (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z" />
+      <circle cx="12" cy="12" r="3" />
+    </svg>
+  ) : (
+    <svg viewBox="0 0 24 24" aria-hidden="true">
+      <path d="M3 3l18 18" />
+      <path d="M10.6 6.1A10.7 10.7 0 0 1 12 6c6.4 0 10 6 10 6a17 17 0 0 1-3.2 3.9" />
+      <path d="M6.6 6.6A17.4 17.4 0 0 0 2 12s3.6 6 10 6a10 10 0 0 0 4.4-1" />
+      <path d="M9.9 9.9a3 3 0 0 0 4.2 4.2" />
+    </svg>
   );
 }
 
-function Logo({ light = false }) {
+// Left-side scene: a phone showing a live QueueLess ticket (decoration only).
+function QueueScene() {
+  const [serving, setServing] = useState(23);
+
+  useEffect(() => {
+    const id = setInterval(() => setServing((n) => (n >= 26 ? 23 : n + 1)), 2800);
+    return () => clearInterval(id);
+  }, []);
+
+  const ahead = YOUR_NUMBER - serving - 1;
+  const progress = ((serving - 22) / (YOUR_NUMBER - 22)) * 100;
+  const soon = ahead <= 1;
+
   return (
-    <Link to="/" className={light ? "ql-logo ql-logo-light" : "ql-logo"}>
-      <span className="ql-logo-mark">🕐</span>
-      <span>
-        Queue<strong>Less</strong>
-      </span>
-    </Link>
+    <div className="ql-scene" aria-hidden="true">
+      <div className="ql-phone">
+        <div className="ql-phone-notch" />
+        <div className="ql-phone-screen">
+          <p className="ql-phone-place">💈 Fade &amp; Blade Barbers</p>
+          <div className="ql-phone-ticket">
+            <span>Your number</span>
+            <strong>A{YOUR_NUMBER}</strong>
+          </div>
+          <div className="ql-phone-row">
+            <div>
+              <span>Now serving</span>
+              <strong key={serving} className="ql-pop">
+                A{serving}
+              </strong>
+            </div>
+            <div>
+              <span>Ahead of you</span>
+              <strong>{ahead}</strong>
+            </div>
+          </div>
+          <div className="ql-progress">
+            <div style={{ width: `${progress}%` }} />
+          </div>
+          <p className={soon ? "ql-phone-status ql-phone-soon" : "ql-phone-status"}>
+            {soon ? "🔔 Get ready – almost your turn" : `≈ ${ahead * 15} min wait`}
+          </p>
+        </div>
+      </div>
+
+      <div className={soon ? "ql-float ql-float-alert ql-float-show" : "ql-float ql-float-alert"}>
+        <span className="ql-float-icon">🔔</span>
+        <div>
+          <strong>Your turn is coming soon</strong>
+          <span>Ticket A{YOUR_NUMBER} · head to the counter</span>
+        </div>
+      </div>
+
+      <div className="ql-float ql-float-serving">
+        <span>Currently serving</span>
+        <strong key={serving} className="ql-pop">
+          A{serving}
+        </strong>
+      </div>
+
+      <ul className="ql-places">
+        {PLACES.map((p) => (
+          <li key={p.label}>
+            <span>{p.icon}</span>
+            {p.label}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }
 
@@ -68,6 +108,7 @@ export default function Login() {
   const redirectTo = location.state?.from?.pathname || location.state?.from || "/dashboard";
 
   const [form, setForm] = useState({ email: "", password: "" });
+  const [remember, setRemember] = useState(true);
   const [fieldErrors, setFieldErrors] = useState({});
   const [error, setError] = useState("");
   const [showPassword, setShowPassword] = useState(false);
@@ -81,9 +122,9 @@ export default function Login() {
 
   function validate() {
     const errors = {};
-    if (!form.email.trim()) errors.email = "Please enter your email.";
-    else if (!EMAIL_PATTERN.test(form.email.trim())) errors.email = "Please enter a valid email address.";
-    if (!form.password) errors.password = "Please enter your password.";
+    if (!form.email.trim()) errors.email = "Email is required.";
+    else if (!EMAIL_PATTERN.test(form.email.trim())) errors.email = "Enter a valid email address.";
+    if (!form.password) errors.password = "Password is required.";
     setFieldErrors(errors);
     return Object.keys(errors).length === 0;
   }
@@ -95,7 +136,8 @@ export default function Login() {
 
     setSubmitting(true);
     try {
-      await login({ email: form.email.trim(), password: form.password });
+      // `remember` is passed as a second argument, so an existing login(form) keeps working.
+      await login({ email: form.email.trim(), password: form.password }, { remember });
       navigate(redirectTo, { replace: true });
     } catch (err) {
       setError(err?.message || "Login failed. Please try again.");
@@ -105,141 +147,120 @@ export default function Login() {
   }
 
   return (
-    <div className="ql-login">
-      {/* Left: brand panel (hidden on small screens) */}
-      <aside className="ql-brand">
-        <span className="ql-circle ql-circle-1" />
-        <span className="ql-circle ql-circle-2" />
+    <div className="ql-page">
+      <div className="ql-diagonal" />
 
-        <Logo light />
+      <header className="ql-top">
+        <Link to="/" className="ql-logo">
+          <span className="ql-logo-mark">🕐</span>
+          Queue<b>Less</b>
+        </Link>
+        <Link to="/" className="ql-guest-pill">
+          Join a queue as guest →
+        </Link>
+      </header>
 
-        <div className="ql-brand-body">
-          <h1>
-            Manage your queue,
-            <br />
-            not the crowd.
-          </h1>
-          <p className="ql-brand-text">
-            For barbers, restaurants, clinics, government offices and repair shops. Your customers wait wherever they
-            like – QueueLess tells them when it's their turn.
-          </p>
+      <section className="ql-hero">
+        <QueueScene />
+        <blockquote className="ql-slogan">
+          <p>“Wait less. Live more.”</p>
+          <footer>Join from your phone – we'll call you when it's your turn.</footer>
+        </blockquote>
+      </section>
 
-          <QueueBoard />
+      <main className="ql-card-area">
+        <div className="ql-card">
+          <h1>Hi there, welcome back 👋</h1>
+          <p className="ql-card-sub">Log in to manage your queue.</p>
 
-          <ul className="ql-features">
-            {FEATURES.map((f) => (
-              <li key={f.text}>
-                <span className="ql-feature-icon">{f.icon}</span>
-                {f.text}
-              </li>
-            ))}
-          </ul>
-        </div>
+          <form onSubmit={handleSubmit} noValidate>
+            {error && (
+              <div className="ql-alert" role="alert">
+                {error}
+              </div>
+            )}
 
-        <p className="ql-brand-footer">© {new Date().getFullYear()} QueueLess</p>
-      </aside>
-
-      {/* Right: login form */}
-      <main className="ql-form-side">
-        <div className="ql-form-wrap">
-          <div className="ql-mobile-logo">
-            <Logo />
-          </div>
-
-          <div className="ql-card">
-            <h2 className="ql-title">Welcome back</h2>
-            <p className="ql-subtitle">Log in to manage your QueueLess dashboard.</p>
-
-            <form className="ql-form" onSubmit={handleSubmit} noValidate>
-              {error && (
-                <div className="ql-alert" role="alert">
-                  <span aria-hidden="true">⚠️</span>
-                  {error}
-                </div>
+            <div className="ql-field">
+              <label htmlFor="email">
+                Email<span>*</span>
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                autoComplete="email"
+                placeholder="email@example.com"
+                value={form.email}
+                onChange={updateField}
+                className={fieldErrors.email ? "ql-invalid" : ""}
+                aria-invalid={Boolean(fieldErrors.email)}
+                aria-describedby={fieldErrors.email ? "email-error" : undefined}
+              />
+              {fieldErrors.email && (
+                <p id="email-error" className="ql-error">
+                  {fieldErrors.email}
+                </p>
               )}
-
-              <div className="ql-field">
-                <label htmlFor="email">Email</label>
-                <div className={fieldErrors.email ? "ql-input ql-input-error" : "ql-input"}>
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M4 6h16v12H4z M4 7l8 6 8-6" />
-                  </svg>
-                  <input
-                    id="email"
-                    name="email"
-                    type="email"
-                    autoComplete="email"
-                    placeholder="you@business.com"
-                    value={form.email}
-                    onChange={updateField}
-                    aria-invalid={Boolean(fieldErrors.email)}
-                    aria-describedby={fieldErrors.email ? "email-error" : undefined}
-                    autoFocus
-                  />
-                </div>
-                {fieldErrors.email && (
-                  <p id="email-error" className="ql-field-error">
-                    {fieldErrors.email}
-                  </p>
-                )}
-              </div>
-
-              <div className="ql-field">
-                <label htmlFor="password">Password</label>
-                <div className={fieldErrors.password ? "ql-input ql-input-error" : "ql-input"}>
-                  <svg viewBox="0 0 24 24" aria-hidden="true">
-                    <path d="M6 11h12v9H6z M8 11V8a4 4 0 0 1 8 0v3" />
-                  </svg>
-                  <input
-                    id="password"
-                    name="password"
-                    type={showPassword ? "text" : "password"}
-                    autoComplete="current-password"
-                    placeholder="Enter your password"
-                    value={form.password}
-                    onChange={updateField}
-                    aria-invalid={Boolean(fieldErrors.password)}
-                    aria-describedby={fieldErrors.password ? "password-error" : undefined}
-                  />
-                  <button
-                    type="button"
-                    className="ql-toggle"
-                    onClick={() => setShowPassword((s) => !s)}
-                    aria-label={showPassword ? "Hide password" : "Show password"}
-                  >
-                    {showPassword ? "Hide" : "Show"}
-                  </button>
-                </div>
-                {fieldErrors.password && (
-                  <p id="password-error" className="ql-field-error">
-                    {fieldErrors.password}
-                  </p>
-                )}
-              </div>
-
-              <button type="submit" className="ql-button" disabled={submitting}>
-                {submitting && <span className="ql-spinner" aria-hidden="true" />}
-                {submitting ? "Logging in..." : "Log in"}
-              </button>
-            </form>
-
-            <div className="ql-divider">
-              <span>or</span>
             </div>
 
-            <Link to="/" className="ql-button-secondary">
-              Join a queue without an account
-            </Link>
-          </div>
+            <div className="ql-field">
+              <label htmlFor="password">
+                Password<span>*</span>
+              </label>
+              <div className="ql-password">
+                <input
+                  id="password"
+                  name="password"
+                  type={showPassword ? "text" : "password"}
+                  autoComplete="current-password"
+                  placeholder="••••••••••"
+                  value={form.password}
+                  onChange={updateField}
+                  className={fieldErrors.password ? "ql-invalid" : ""}
+                  aria-invalid={Boolean(fieldErrors.password)}
+                  aria-describedby={fieldErrors.password ? "password-error" : undefined}
+                />
+                <button
+                  type="button"
+                  className="ql-eye"
+                  onClick={() => setShowPassword((s) => !s)}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                >
+                  <EyeIcon open={!showPassword} />
+                </button>
+              </div>
+              {fieldErrors.password && (
+                <p id="password-error" className="ql-error">
+                  {fieldErrors.password}
+                </p>
+              )}
+            </div>
 
-          <p className="ql-register">
-            New to QueueLess?{" "}
-            <Link to="/register">Create an account</Link>
+            <div className="ql-row">
+              <label className="ql-check">
+                <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.target.checked)} />
+                <span className="ql-checkbox" />
+                Remember me
+              </label>
+              <Link to="/forgot-password" className="ql-link">
+                Forgot password?
+              </Link>
+            </div>
+
+            <button type="submit" className="ql-submit" disabled={submitting}>
+              {submitting && <span className="ql-spinner" aria-hidden="true" />}
+              {submitting ? "Logging in..." : "Log in"}
+            </button>
+          </form>
+
+          <p className="ql-signup">
+            Don't have an account?{" "}
+            <Link to="/register" className="ql-link">
+              Sign up
+            </Link>
           </p>
         </div>
       </main>
     </div>
   );
 }
-
-

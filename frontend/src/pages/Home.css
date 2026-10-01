@@ -1,0 +1,256 @@
+/* QueueLess – Home page */
+
+.hm-page {
+  --brand-50: rgba(240, 161, 107, 0.14);
+  --brand-600: #f0a16b;
+  --brand-700: #d9824f;
+  --text: #f1f6f4;
+  --muted: #c0d0cc;
+  --line: rgba(222, 239, 234, 0.2);
+
+  min-height: 100vh;
+  background-color: #102526;
+  background-image:
+    linear-gradient(180deg, rgba(12, 28, 30, 0.74), rgba(12, 28, 30, 0.88)),
+    url("https://images.unsplash.com/photo-1661764337280-5ab5970f03f6?auto=format&fit=crop&w=2000&q=85");
+  background-position: center top;
+  background-size: cover;
+  background-attachment: fixed;
+  color: var(--text);
+  font-family: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.hm-page * {
+  box-sizing: border-box;
+}
+
+/* ---------- Navigation ---------- */
+.hm-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px clamp(16px, 4vw, 40px);
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
+.hm-logo {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+}
+.hm-logo b {
+  color: var(--brand-600);
+}
+.hm-nav-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+/* ---------- Buttons ---------- */
+.hm-btn {
+  display: inline-block;
+  padding: 9px 18px;
+  border: 1px solid var(--brand-600);
+  border-radius: 8px;
+  background: var(--brand-600);
+  color: #183b37;
+  font-size: 0.9rem;
+  font-weight: 600;
+  text-decoration: none;
+  transition: background 0.2s;
+}
+.hm-btn:hover {
+  background: var(--brand-700);
+}
+.hm-btn-light {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text);
+  border-color: rgba(222, 239, 234, 0.45);
+}
+.hm-btn-light:hover {
+  background: rgba(255, 255, 255, 0.16);
+}
+.hm-btn-white {
+  border-color: #f3ce75;
+  background: #f3ce75;
+  color: #183b37;
+}
+.hm-btn-white:hover {
+  background: #ffdf91;
+}
+.hm-btn-big {
+  padding: 13px 26px;
+  font-size: 1rem;
+}
+
+/* ---------- Hero ---------- */
+.hm-hero {
+  position: relative;
+  isolation: isolate;
+  overflow: clip;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 40px;
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 64px 16px;
+}
+.hm-queue-art {
+  position: absolute;
+  z-index: -1;
+  top: -44px;
+  right: -72px;
+  width: min(44vw, 440px);
+  height: auto;
+  opacity: 0.22;
+  pointer-events: none;
+}
+.hm-hero-text {
+  position: relative;
+  z-index: 1;
+  max-width: 520px;
+}
+.hm-hero h1 {
+  margin: 0;
+  font-size: clamp(2.2rem, 5vw, 3.2rem);
+  line-height: 1.1;
+}
+.hm-hero-text p {
+  margin: 18px 0 28px;
+  font-size: 1.05rem;
+  line-height: 1.6;
+  color: var(--muted);
+}
+.hm-hero-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* Example ticket */
+/* ---------- Sections ---------- */
+.hm-section {
+  max-width: 1040px;
+  margin: 0 auto;
+  padding: 40px 16px;
+  text-align: center;
+}
+.hm-section h2 {
+  margin: 0 0 28px;
+  font-size: 1.7rem;
+}
+.hm-steps {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 20px;
+}
+.hm-card {
+  position: relative;
+  padding: 28px 22px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(17, 42, 43, 0.78);
+  backdrop-filter: blur(8px);
+}
+.hm-step-number {
+  position: absolute;
+  top: 14px;
+  left: 16px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: var(--brand-600);
+}
+.hm-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
+  background: var(--brand-50);
+  font-size: 1.7rem;
+}
+.hm-card h3 {
+  margin: 14px 0 6px;
+  font-size: 1.1rem;
+  color: var(--text);
+}
+.hm-card p {
+  margin: 0;
+  font-size: 0.9rem;
+  line-height: 1.5;
+  color: var(--muted);
+}
+
+.hm-places {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+}
+.hm-place {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 20px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: rgba(17, 42, 43, 0.76);
+  color: var(--text);
+  backdrop-filter: blur(8px);
+  font-weight: 500;
+}
+.hm-place span {
+  font-size: 1.3rem;
+}
+
+/* ---------- Call to action ---------- */
+.hm-cta {
+  max-width: 1040px;
+  margin: 40px auto;
+  padding: 48px 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(135deg, rgba(22, 75, 70, 0.94), rgba(18, 48, 48, 0.94));
+  color: #fff;
+  text-align: center;
+  backdrop-filter: blur(8px);
+}
+.hm-cta h2 {
+  margin: 0 0 22px;
+  font-size: 1.6rem;
+}
+
+.hm-footer {
+  padding: 24px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+/* ---------- Mobile ---------- */
+@media (max-width: 1072px) {
+  .hm-cta {
+    margin: 40px 16px;
+  }
+}
+@media (max-width: 760px) {
+  .hm-page {
+    background-attachment: scroll;
+  }
+  .hm-hero {
+    flex-direction: column;
+    text-align: center;
+    padding: 40px 16px;
+  }
+  .hm-queue-art {
+    top: 0;
+    right: -52px;
+    width: 280px;
+    opacity: 0.14;
+  }
+  .hm-hero-buttons {
+    justify-content: center;
+  }
+}

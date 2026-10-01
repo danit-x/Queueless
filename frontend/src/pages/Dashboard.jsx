@@ -1,121 +1,133 @@
-import { useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
-import AppLayout from "../layouts/AppLayout";
-import QueueCard from "../components/QueueCard";
-import { useAuth } from "../context/AuthContext";
-import { usePolling } from "../hooks/usePolling";
-import { POLL_INTERVAL_MS, canManageQueues, queueApi, usingMockApi } from "../services/queueService";
+import { useEffect, useState } from "react";
+import "./Dashboard.css";
+
+// Services customers can queue for.
+// TODO: load these from the backend later (GET /api/queues).
+const SERVICES = [
+  { id: "barber", icon: "💈", name: "Barber", prefix: "B", waiting: 4 },
+  { id: "restaurant", icon: "🍽️", name: "Restaurant", prefix: "R", waiting: 6 },
+  { id: "clinic", icon: "🏥", name: "Clinic", prefix: "C", waiting: 3 },
+  { id: "bank", icon: "🏦", name: "Bank", prefix: "K", waiting: 5 },
+  { id: "repair", icon: "🔧", name: "Repair", prefix: "F", waiting: 2 },
+];
+
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
 
 export default function Dashboard() {
-  const { user } = useAuth();
-  const navigate = useNavigate();
-  const [queues, setQueues] = useState([]);
-  const [tickets, setTickets] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [joiningId, setJoiningId] = useState(null);
+  const [ticket, setTicket] = useState(null);
 
-  async function refresh() {
-    try {
-      const [queueData, ticketData] = await Promise.all([queueApi.listQueues(), queueApi.myTickets()]);
-      setQueues(queueData.queues);
-      setTickets(ticketData.tickets);
-      setError("");
-    } catch (error) {
-      setError(error.message);
-    } finally {
-      setLoading(false);
-    }
+  // Demo only: the line moves forward every 8 seconds.
+  // Replace with a call to the backend (GET /api/tickets/:id) later.
+  useEffect(() => {
+    if (!ticket || ticket.ahead === 0) return;
+    const timer = setTimeout(() => {
+      setTicket((t) => ({ ...t, ahead: t.ahead - 1, serving: t.serving + 1 }));
+    }, 8000);
+    return () => clearTimeout(timer);
+  }, [ticket]);
+
+  function joinQueue(service) {
+    // TODO: replace with POST /api/queues/:id/tickets
+    const serving = 20 + Math.floor(Math.random() * 5);
+    setTicket({
+      service,
+      number: serving + service.waiting + 1,
+      serving,
+      ahead: service.waiting,
+    });
   }
 
-  usePolling(refresh, POLL_INTERVAL_MS);
-
-  async function handleJoin(queueId) {
-    setJoiningId(queueId);
-    setError("");
-
-    try {
-      const { ticket } = await queueApi.joinQueue(queueId);
-      navigate(`/tickets/${ticket.id}`);
-    } catch (error) {
-      setError(error.message);
-      setJoiningId(null);
-    }
+  function leaveQueue() {
+    setTicket(null);
   }
 
-  const ticketByQueue = Object.fromEntries(tickets.map((ticket) => [ticket.queueId, ticket]));
-  const canManage = canManageQueues(user);
+  function scrollToServices() {
+    document.getElementById("services")?.scrollIntoView({ behavior: "smooth" });
+  }
 
   return (
-    <AppLayout>
-      <p className="text-sm font-medium uppercase tracking-wide text-brand-700">Welcome, {user?.name}</p>
-      <h1 className="mt-2 text-3xl font-semibold text-slate-950">Skip the line, not your turn</h1>
-      <p className="mt-2 text-slate-600">Join a queue from anywhere and we'll tell you when it's almost your turn.</p>
+    <div className="cd-page">
+      <main className="cd-main">
+        {/* Greeting */}
+        <section className="cd-hello">
+          <h1>{getGreeting()}! 👋</h1>
+          <p>Manage your queues without waiting in line.</p>
+        </section>
 
-      {usingMockApi && (
-        <p className="mt-4 rounded-md border border-dashed border-slate-300 bg-white p-3 text-sm text-slate-600">
-          Demo mode: queue data is simulated in your browser, and each queue moves forward every 20 seconds.
-        </p>
-      )}
+        {/* Current queue */}
+        <section className="cd-card cd-current">
+          <h2>Your Current Queue</h2>
 
-      {error && <p className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p>}
+          {!ticket ? (
+            <div className="cd-empty">
+              <p>No active queue</p>
+              <button className="cd-btn" onClick={scrollToServices}>
+                Join a Queue
+              </button>
+            </div>
+          ) : (
+            <div className="cd-ticket">
+              <p className="cd-ticket-place">
+                {ticket.service.icon} {ticket.service.name}
+              </p>
 
-      <section className="mt-8">
-        <h2 className="text-lg font-semibold text-slate-950">Your tickets</h2>
-        {tickets.length === 0 ? (
-          <div className="mt-3 rounded-md border border-dashed border-slate-300 bg-white p-6 text-center">
-            <p className="font-medium text-slate-700">{loading ? "Loading..." : "You're not in any queue yet"}</p>
-          </div>
-        ) : (
-          <ul className="mt-3 grid gap-4 sm:grid-cols-2">
-            {tickets.map((ticket) => (
-              <li key={ticket.id}>
-                <Link
-                  to={`/tickets/${ticket.id}`}
-                  className="flex items-center justify-between rounded-lg border border-brand-600 bg-white p-5 shadow-sm hover:bg-brand-50"
-                >
-                  <div>
-                    <p className="text-sm text-slate-600">{ticket.queueName}</p>
-                    <p className="mt-1 text-sm text-slate-900">
-                      {ticket.status === "serving" ? (
-                        <span className="font-semibold text-emerald-700">It's your turn!</span>
-                      ) : (
-                        <>
-                          <span className="font-semibold">{ticket.peopleAhead}</span> ahead · now serving{" "}
-                          {ticket.currentServing}
-                        </>
-                      )}
-                    </p>
-                  </div>
-                  <span className="text-3xl font-bold text-brand-700">{ticket.code}</span>
-                </Link>
-              </li>
+              <div className="cd-numbers">
+                <div className="cd-box cd-box-mine">
+                  <span>Your number</span>
+                  <strong>
+                    {ticket.service.prefix}
+                    {ticket.number}
+                  </strong>
+                </div>
+                <div className="cd-box">
+                  <span>Now serving</span>
+                  <strong>
+                    {ticket.service.prefix}
+                    {ticket.serving}
+                  </strong>
+                </div>
+                <div className="cd-box">
+                  <span>People ahead</span>
+                  <strong>{ticket.ahead}</strong>
+                </div>
+              </div>
+
+              {ticket.ahead === 0 ? (
+                <p className="cd-alert cd-alert-now">✅ It's your turn! Please go to the counter.</p>
+              ) : ticket.ahead <= 2 ? (
+                <p className="cd-alert">🔔 Your turn is coming soon.</p>
+              ) : null}
+
+              <button className="cd-btn cd-btn-outline" onClick={leaveQueue}>
+                Leave Queue
+              </button>
+            </div>
+          )}
+        </section>
+
+        {/* Services */}
+        <section id="services">
+          <h2 className="cd-title">Available Services</h2>
+          <div className="cd-grid">
+            {SERVICES.map((service) => (
+              <div key={service.id} className="cd-card cd-service">
+                <span className="cd-icon">{service.icon}</span>
+                <h3>{service.name}</h3>
+                <p>{service.waiting} people waiting</p>
+                <button className="cd-btn" onClick={() => joinQueue(service)} disabled={Boolean(ticket)}>
+                  Join Queue
+                </button>
+              </div>
             ))}
-          </ul>
-        )}
-      </section>
-
-      <section className="mt-10">
-        <h2 className="text-lg font-semibold text-slate-950">Join a queue</h2>
-        {!loading && queues.length === 0 ? (
-          <div className="mt-3 rounded-md border border-dashed border-slate-300 bg-white p-6 text-center">
-            <p className="font-medium text-slate-700">No active queues</p>
           </div>
-        ) : (
-          <div className="mt-3 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            {queues.map((queue) => (
-              <QueueCard
-                key={queue.id}
-                queue={queue}
-                activeTicket={ticketByQueue[queue.id]}
-                joining={joiningId === queue.id}
-                canManage={canManage}
-                onJoin={handleJoin}
-              />
-            ))}
-          </div>
-        )}
-      </section>
-    </AppLayout>
+          {ticket && <p className="cd-note">You can join one queue at a time.</p>}
+        </section>
+      </main>
+    </div>
   );
 }

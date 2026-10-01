@@ -1,0 +1,247 @@
+/* QueueLess – Customer dashboard */
+
+.cd-page {
+  --brand-50: #e2f1ec;
+  --brand-600: #267c70;
+  --brand-700: #164b46;
+  --text: #173b37;
+  --muted: #617b75;
+  --line: #d6e4df;
+
+  min-height: 100vh;
+  background: #f2f7f4;
+  color: var(--text);
+  font-family: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.cd-page * {
+  box-sizing: border-box;
+}
+
+/* ---------- Navigation ---------- */
+.cd-nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 14px clamp(16px, 4vw, 40px);
+  background: #fff;
+  border-bottom: 1px solid var(--line);
+}
+.cd-logo {
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+}
+.cd-logo b {
+  color: var(--brand-600);
+}
+.cd-links {
+  display: flex;
+  gap: 6px;
+}
+.cd-links a {
+  padding: 8px 14px;
+  border-radius: 8px;
+  color: var(--muted);
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+.cd-links a:hover {
+  color: var(--text);
+}
+.cd-links a.active {
+  background: var(--brand-50);
+  color: var(--brand-700);
+}
+.cd-profile {
+  padding: 8px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  color: var(--text);
+  font-size: 0.9rem;
+  text-decoration: none;
+  white-space: nowrap;
+}
+.cd-profile:hover {
+  border-color: var(--brand-600);
+}
+
+/* ---------- Page ---------- */
+.cd-main {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 32px 16px 56px;
+}
+.cd-hello h1 {
+  margin: 0;
+  font-size: 1.8rem;
+}
+.cd-hello p {
+  margin: 6px 0 24px;
+  color: var(--muted);
+}
+.cd-card {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 16px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+}
+.cd-title,
+.cd-current h2 {
+  margin: 0 0 16px;
+  font-size: 1.15rem;
+}
+
+/* ---------- Current queue ---------- */
+.cd-current {
+  padding: 24px;
+  margin-bottom: 36px;
+}
+.cd-empty {
+  padding: 16px 0 8px;
+  text-align: center;
+}
+.cd-empty p {
+  margin: 0 0 16px;
+  color: var(--muted);
+}
+.cd-ticket-place {
+  margin: 0 0 14px;
+  font-weight: 600;
+}
+.cd-numbers {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 12px;
+}
+.cd-box {
+  padding: 14px 8px;
+  border-radius: 12px;
+  background: #f8fafc;
+  text-align: center;
+}
+.cd-box span {
+  display: block;
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.cd-box strong {
+  display: block;
+  margin-top: 4px;
+  font-size: 1.8rem;
+}
+.cd-box-mine {
+  background: var(--brand-600);
+  color: #fff;
+}
+.cd-box-mine span {
+  color: var(--brand-50);
+}
+.cd-alert {
+  margin: 16px 0 0;
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: #fef3c7;
+  color: #92400e;
+  font-weight: 600;
+}
+.cd-alert-now {
+  background: #dcfce7;
+  color: #166534;
+}
+.cd-ticket .cd-btn {
+  margin-top: 16px;
+}
+
+/* ---------- Buttons ---------- */
+.cd-btn {
+  padding: 10px 20px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--brand-600);
+  color: #fff;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.cd-btn:hover:not(:disabled) {
+  background: var(--brand-700);
+}
+.cd-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.cd-btn-outline {
+  border: 1px solid #fecaca;
+  background: #fff;
+  color: #b91c1c;
+}
+.cd-btn-outline:hover:not(:disabled) {
+  background: #fef2f2;
+}
+
+/* ---------- Services ---------- */
+.cd-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 16px;
+}
+.cd-service {
+  padding: 20px;
+  text-align: center;
+  transition: transform 0.15s, box-shadow 0.15s;
+}
+.cd-service:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.08);
+}
+.cd-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  background: var(--brand-50);
+  font-size: 1.6rem;
+}
+.cd-service h3 {
+  margin: 12px 0 4px;
+  font-size: 1rem;
+}
+.cd-service p {
+  margin: 0 0 14px;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+.cd-service .cd-btn {
+  width: 100%;
+}
+.cd-note {
+  margin: 14px 0 0;
+  font-size: 0.8rem;
+  color: var(--muted);
+}
+
+/* ---------- Mobile ---------- */
+@media (max-width: 640px) {
+  .cd-nav {
+    flex-wrap: wrap;
+  }
+  .cd-links {
+    order: 3;
+    width: 100%;
+    justify-content: space-between;
+  }
+  .cd-numbers {
+    gap: 8px;
+  }
+  .cd-box strong {
+    font-size: 1.4rem;
+  }
+}

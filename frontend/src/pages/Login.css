@@ -1,507 +1,615 @@
-/* =========================
-   QueueLess Login Page
-   ========================= */
+@import url("https://fonts.googleapis.com/css2?family=Poppins:wght@400;500;600;700;800&display=swap");
 
-.ql-login {
-  min-height: 100vh;
-  display: flex;
-  background: #f8fafc;
-  font-family: Arial, Helvetica, sans-serif;
-}
+.ql-page {
+  --brand-50: #e2f1ec;
+  --brand-600: #267c70;
+  --brand-700: #164b46;
+  --ink: #123f3b;
+  --text: #eef6f2;
+  --muted: #b6cac4;
+  --line: rgba(213, 232, 226, 0.25);
+  --danger: #fca5a5;
 
-/* =========================
-   Left Brand Panel
-   ========================= */
-
-.ql-brand {
-  width: 50%;
-  min-height: 100vh;
   position: relative;
+  display: grid;
+  grid-template-columns: 1fr;
+  min-height: 100vh;
   overflow: hidden;
-  padding: 40px 55px;
-  background: #0f172a;
-  color: white;
-  display: flex;
-  flex-direction: column;
+  font-family: "Poppins", system-ui, -apple-system, "Segoe UI", sans-serif;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 18% 22%, rgba(255, 255, 255, 0.12), transparent 38%),
+    radial-gradient(circle at 40% 85%, rgba(240, 161, 107, 0.08), transparent 35%),
+    linear-gradient(135deg, #267c70 0%, #164b46 70%, #102d2e 100%);
+}
+.ql-page *,
+.ql-page *::before,
+.ql-page *::after {
+  box-sizing: border-box;
 }
 
+@media (min-width: 1024px) {
+  .ql-page {
+    grid-template-columns: 1.35fr 1fr;
+  }
+}
+
+/* Dark diagonal panel on the right */
+.ql-diagonal {
+  display: none;
+}
+@media (min-width: 1024px) {
+  .ql-diagonal {
+    display: block;
+    position: absolute;
+    inset: 0 0 0 auto;
+    width: 46%;
+    background: var(--ink);
+    clip-path: polygon(38% 0, 100% 0, 100% 100%, 0 100%);
+  }
+  .ql-diagonal::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background-image: radial-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px);
+    background-size: 22px 22px;
+  }
+}
+
+/* ---------- Top bar ---------- */
+.ql-top {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 24px clamp(16px, 4vw, 48px);
+}
 .ql-logo {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  text-decoration: none;
-  color: #0f172a;
-  font-size: 25px;
-  font-weight: 700;
-}
-
-.ql-logo-light {
-  color: white;
-}
-
-.ql-logo-mark {
-  font-size: 30px;
-}
-
-.ql-brand-body {
-  max-width: 550px;
-  margin: auto 0;
-  position: relative;
-  z-index: 2;
-}
-
-.ql-brand-body h1 {
-  font-size: 48px;
-  line-height: 1.1;
-  margin: 0 0 22px;
-  font-weight: 700;
-}
-
-.ql-brand-text {
-  font-size: 17px;
-  line-height: 1.7;
-  max-width: 500px;
-  margin-bottom: 30px;
-}
-
-/* =========================
-   Queue Board
-   ========================= */
-
-.ql-board {
-  max-width: 500px;
-  padding: 22px;
-  border-radius: 18px;
-  background: rgba(255, 255, 255, 0.12);
-  backdrop-filter: blur(10px);
-  margin-bottom: 28px;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-}
-
-.ql-board-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
-.ql-board-label {
-  margin: 0 0 6px;
-  font-size: 13px;
-  opacity: 0.8;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.ql-board-number {
-  margin: 0;
-  font-size: 38px;
-  font-weight: 700;
-}
-
-.ql-board-mine {
-  margin: 0;
-  font-size: 30px;
-  font-weight: 700;
-}
-
-.ql-board-ticket {
-  text-align: right;
-}
-
-.ql-board-line {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  margin: 20px 0 14px;
-}
-
-.ql-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.4);
-}
-
-.ql-dot-now {
-  background: #38bdf8;
-}
-
-.ql-dot-you {
-  width: 13px;
-  height: 13px;
-  background: #ffffff;
-}
-
-.ql-board-status {
-  margin: 0;
-  font-size: 14px;
+  font-size: 1.2rem;
   font-weight: 600;
+  color: #fff;
+  text-decoration: none;
+}
+.ql-logo b {
+  font-weight: 800;
+  color: var(--brand-50);
+}
+.ql-logo-mark {
+  display: grid;
+  place-items: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+.ql-guest-pill {
+  padding: 8px 16px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.45);
+  color: #fff;
+  font-size: 0.8rem;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  transition: background 0.2s;
+}
+.ql-guest-pill:hover {
+  background: rgba(255, 255, 255, 0.12);
 }
 
-.ql-soon {
-  color: #38bdf8;
+/* ---------- Left hero ---------- */
+.ql-hero {
+  display: none;
 }
-
-.ql-pop {
-  animation: pop 0.3s ease;
-}
-
-@keyframes pop {
-  0% {
-    transform: scale(0.8);
-    opacity: 0.5;
+@media (min-width: 1024px) {
+  .ql-hero {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-end;
+    padding: 110px 48px 56px;
+    color: #fff;
   }
-
-  100% {
-    transform: scale(1);
-    opacity: 1;
-  }
 }
-
-/* =========================
-   Features
-   ========================= */
-
-.ql-features {
-  list-style: none;
-  padding: 0;
+.ql-slogan {
   margin: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 13px;
+  max-width: 460px;
+}
+.ql-slogan p {
+  margin: 0;
+  font-size: clamp(2rem, 3vw, 2.6rem);
+  font-weight: 700;
+  line-height: 1.15;
+  letter-spacing: -0.01em;
+}
+.ql-slogan footer {
+  margin-top: 10px;
+  font-size: 0.9rem;
+  color: rgba(226, 241, 236, 0.85);
 }
 
-.ql-features li {
+/* Scene */
+.ql-scene {
+  position: relative;
+  flex: 1;
+  min-height: 420px;
+  margin-bottom: 32px;
+}
+.ql-phone {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 230px;
+  padding: 12px;
+  border-radius: 36px;
+  background: #123f3b;
+  box-shadow: 0 30px 60px rgba(3, 25, 45, 0.45), inset 0 0 0 2px rgba(255, 255, 255, 0.08);
+  transform: translate(-60%, -50%) rotate(-4deg);
+}
+.ql-phone-notch {
+  width: 80px;
+  height: 18px;
+  margin: 0 auto 8px;
+  border-radius: 0 0 12px 12px;
+  background: #000;
+}
+.ql-phone-screen {
+  padding: 18px 16px 20px;
+  border-radius: 26px;
+  background: #edf5f1;
+  color: #173b37;
+}
+.ql-phone-place {
+  margin: 0 0 12px;
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #59756f;
+}
+.ql-phone-ticket {
+  padding: 14px;
+  border-radius: 16px;
+  text-align: center;
+  color: #fff;
+  background: linear-gradient(135deg, var(--brand-600), var(--brand-700));
+}
+.ql-phone-ticket span,
+.ql-phone-row span {
+  display: block;
+  font-size: 0.6rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  opacity: 0.8;
+}
+.ql-phone-ticket strong {
+  display: block;
+  margin-top: 2px;
+  font-size: 2.6rem;
+  font-weight: 800;
+  line-height: 1;
+}
+.ql-phone-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-top: 10px;
+  text-align: center;
+}
+.ql-phone-row > div {
+  padding: 8px 4px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid #d6e4df;
+}
+.ql-phone-row span {
+  color: var(--muted);
+}
+.ql-phone-row strong {
+  display: block;
+  font-size: 1.25rem;
+  font-weight: 700;
+}
+.ql-progress {
+  height: 6px;
+  margin-top: 14px;
+  border-radius: 99px;
+  background: #d6e4df;
+  overflow: hidden;
+}
+.ql-progress div {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--brand-600);
+  transition: width 0.6s ease;
+}
+.ql-phone-status {
+  margin: 10px 0 0;
+  font-size: 0.72rem;
+  text-align: center;
+  color: #59756f;
+}
+.ql-phone-soon {
+  font-weight: 600;
+  color: #b45309;
+}
+
+/* Floating cards */
+.ql-float {
+  position: absolute;
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 15px;
+  padding: 12px 16px;
+  border-radius: 16px;
+  border: 1px solid rgba(213, 232, 226, 0.22);
+  background: rgba(18, 55, 52, 0.94);
+  color: var(--text);
+  box-shadow: 0 16px 36px rgba(3, 25, 45, 0.25);
+  animation: ql-float 5s ease-in-out infinite;
 }
-
-.ql-feature-icon {
-  font-size: 20px;
+.ql-float strong {
+  display: block;
+  font-size: 0.85rem;
 }
-
-.ql-brand-footer {
-  margin: 30px 0 0;
-  font-size: 13px;
-  opacity: 0.8;
+.ql-float span {
+  font-size: 0.72rem;
+  color: #c5d8d2;
 }
-
-/* =========================
-   Decorative Circles
-   ========================= */
-
-.ql-circle {
-  position: absolute;
-  border-radius: 50%;
-  background: rgba(56, 189, 248, 0.08);
+.ql-float-alert {
+  top: 12%;
+  left: 52%;
+  opacity: 0.55;
+  transition: opacity 0.4s, transform 0.4s;
 }
-
-.ql-circle-1 {
-  width: 300px;
-  height: 300px;
-  right: -100px;
-  top: -100px;
+.ql-float-show {
+  opacity: 1;
+  box-shadow: 0 0 0 4px rgba(251, 191, 36, 0.45), 0 16px 36px rgba(3, 25, 45, 0.25);
 }
-
-.ql-circle-2 {
-  width: 250px;
-  height: 250px;
-  left: -120px;
-  bottom: -100px;
+.ql-float-show .ql-float-icon {
+  animation: ql-ring 1.2s ease-in-out infinite;
 }
-
-/* =========================
-   Right Form Side
-   ========================= */
-
-.ql-form-side {
-  width: 50%;
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 40px;
-  background: #ffffff;
+.ql-float-icon {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  background: #fef3c7;
+  font-size: 1.1rem;
+  transform-origin: top center;
 }
-
-.ql-form-wrap {
-  width: 100%;
-  max-width: 450px;
-}
-
-.ql-mobile-logo {
-  display: none;
-  margin-bottom: 30px;
-}
-
-/* =========================
-   Login Card
-   ========================= */
-
-.ql-card {
-  padding: 35px;
-  border: 1px solid #e2e8f0;
-  border-radius: 18px;
-  background: #ffffff;
-  box-shadow: 0 10px 35px rgba(15, 23, 42, 0.08);
-}
-
-.ql-title {
-  margin: 0 0 8px;
-  font-size: 30px;
-  color: #0f172a;
-}
-
-.ql-subtitle {
-  margin: 0 0 30px;
-  color: #64748b;
-  line-height: 1.5;
-}
-
-/* =========================
-   Form
-   ========================= */
-
-.ql-form {
-  display: flex;
+.ql-float-serving {
+  bottom: 14%;
+  left: 6%;
   flex-direction: column;
-  gap: 22px;
+  align-items: flex-start;
+  gap: 0;
+  animation-delay: -2.5s;
+}
+.ql-float-serving span {
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  font-size: 0.62rem;
+}
+.ql-float-serving strong {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--brand-700);
 }
 
-.ql-field {
+.ql-places {
+  position: absolute;
+  top: 6%;
+  left: 0;
   display: flex;
   flex-direction: column;
   gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.ql-places li {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  padding: 6px 12px 6px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  font-size: 0.78rem;
+  color: #fff;
+  backdrop-filter: blur(4px);
+}
+.ql-places li span {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.9);
+  font-size: 0.85rem;
+}
+
+@keyframes ql-float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-10px); }
+}
+@keyframes ql-ring {
+  0%, 100% { transform: rotate(0); }
+  20% { transform: rotate(14deg); }
+  40% { transform: rotate(-10deg); }
+  60% { transform: rotate(6deg); }
+}
+.ql-pop {
+  animation: ql-pop 0.45s ease-out;
+}
+@keyframes ql-pop {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+/* ---------- Login card ---------- */
+.ql-card-area {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 110px 16px 48px;
+}
+@media (min-width: 1024px) {
+  .ql-card-area {
+    justify-content: flex-start;
+    padding: 48px 48px 48px 0;
+  }
+}
+.ql-card {
+  width: 100%;
+  max-width: 420px;
+  padding: 40px 36px 32px;
+  border: 1px solid rgba(213, 232, 226, 0.22);
+  border-radius: 16px;
+  background: rgba(18, 55, 52, 0.96);
+  color: var(--text);
+  box-shadow: 0 30px 70px rgba(2, 16, 20, 0.35);
+  animation: ql-rise 0.5s ease-out;
+}
+@media (max-width: 420px) {
+  .ql-card {
+    padding: 32px 22px 26px;
+  }
+}
+@keyframes ql-rise {
+  from { opacity: 0; transform: translateY(14px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.ql-card h1 {
+  margin: 0;
+  font-size: 1.5rem;
+  font-weight: 700;
+  text-align: center;
+  letter-spacing: -0.01em;
+}
+.ql-card-sub {
+  margin: 6px 0 28px;
+  font-size: 0.88rem;
+  text-align: center;
+  color: var(--muted);
+}
+.ql-card form {
+  display: grid;
+  gap: 18px;
+}
+
+.ql-alert {
+  padding: 11px 14px;
+  border-radius: 10px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: var(--danger);
+  font-size: 0.85rem;
+  animation: ql-shake 0.35s ease-in-out;
+}
+@keyframes ql-shake {
+  0%, 100% { transform: translateX(0); }
+  25% { transform: translateX(-4px); }
+  75% { transform: translateX(4px); }
 }
 
 .ql-field label {
-  font-size: 14px;
-  font-weight: 600;
-  color: #334155;
+  display: block;
+  margin-bottom: 6px;
+  font-size: 0.8rem;
+  font-weight: 500;
 }
-
-.ql-input {
-  display: flex;
-  align-items: center;
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  padding: 0 13px;
-  transition: border-color 0.2s, box-shadow 0.2s;
+.ql-field label span {
+  color: var(--danger);
+  margin-left: 2px;
 }
-
-.ql-input:focus-within {
-  border-color: #2563eb;
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
-}
-
-.ql-input-error {
-  border-color: #e53935;
-}
-
-.ql-input svg {
-  width: 20px;
-  height: 20px;
-  margin-right: 10px;
-  fill: none;
-  stroke: #64748b;
-  stroke-width: 1.5;
-}
-
-.ql-input input {
+.ql-field input {
   width: 100%;
-  border: none;
-  outline: none;
-  padding: 14px 0;
-  font-size: 15px;
-  background: transparent;
-  color: #0f172a;
-}
-
-.ql-input input::placeholder {
-  color: #94a3b8;
-}
-
-.ql-toggle {
-  border: none;
-  background: none;
-  color: #2563eb;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.ql-toggle:hover {
-  color: #1d4ed8;
-}
-
-.ql-field-error {
-  margin: 0;
-  color: #e53935;
-  font-size: 13px;
-}
-
-/* =========================
-   Alert
-   ========================= */
-
-.ql-alert {
   padding: 12px 14px;
-  border-radius: 9px;
-  background: #fef2f2;
-  border: 1px solid #fecaca;
-  color: #b91c1c;
-  font-size: 14px;
-  display: flex;
-  gap: 8px;
-  align-items: center;
+  border: 1.5px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.07);
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--text);
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+.ql-field input::placeholder {
+  color: #a9c0b9;
+}
+.ql-field input:focus {
+  border-color: var(--brand-600);
+  box-shadow: 0 0 0 4px var(--brand-50);
+}
+.ql-field input.ql-invalid {
+  border-color: #fca5a5;
+}
+.ql-field input.ql-invalid:focus {
+  box-shadow: 0 0 0 4px rgba(252, 165, 165, 0.16);
+}
+.ql-error {
+  margin: 6px 0 0;
+  font-size: 0.75rem;
+  color: var(--danger);
 }
 
-/* =========================
-   Buttons
-   ========================= */
+.ql-password {
+  position: relative;
+}
+.ql-password input {
+  padding-right: 46px;
+}
+.ql-eye {
+  position: absolute;
+  top: 50%;
+  right: 8px;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--muted);
+  cursor: pointer;
+  transform: translateY(-50%);
+}
+.ql-eye:hover {
+  color: var(--brand-700);
+  background: var(--brand-50);
+}
+.ql-eye svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
 
-.ql-button {
+.ql-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 0.82rem;
+}
+.ql-check {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  user-select: none;
+}
+.ql-check input {
+  position: absolute;
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.ql-checkbox {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--line);
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.07);
+  transition: background 0.15s, border-color 0.15s;
+}
+.ql-check input:checked + .ql-checkbox {
+  border-color: var(--brand-600);
+  background: var(--brand-600)
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='white' stroke-width='3.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12l5 5 9-10'/%3E%3C/svg%3E")
+    center / 12px no-repeat;
+}
+.ql-check input:focus-visible + .ql-checkbox {
+  box-shadow: 0 0 0 3px var(--brand-50), 0 0 0 5px var(--brand-600);
+}
+
+.ql-link {
+  font-weight: 600;
+  color: #f3ce75;
+  text-decoration: none;
+}
+.ql-link:hover {
+  text-decoration: underline;
+}
+
+.ql-submit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
   width: 100%;
-  border: none;
+  margin-top: 4px;
+  padding: 13px 16px;
+  border: 0;
   border-radius: 10px;
-  padding: 14px;
-  background: #2563eb;
-  color: white;
-  font-size: 16px;
+  background: #f0a16b;
+  color: #183b37;
+  font: inherit;
+  font-size: 0.95rem;
   font-weight: 600;
   cursor: pointer;
-  transition: background 0.2s, transform 0.2s;
+  transition: background 0.15s, transform 0.1s, box-shadow 0.15s;
 }
-
-.ql-button:hover {
-  background: #1d4ed8;
+.ql-submit:hover:not(:disabled) {
+  background: #ffc08f;
+  box-shadow: 0 10px 24px rgba(5, 25, 22, 0.35);
 }
-
-.ql-button:active {
-  transform: scale(0.98);
+.ql-submit:active:not(:disabled) {
+  transform: translateY(1px);
 }
-
-.ql-button:disabled {
-  opacity: 0.65;
+.ql-submit:disabled {
+  opacity: 0.7;
   cursor: not-allowed;
 }
-
-.ql-button-secondary {
-  display: block;
-  width: 100%;
-  box-sizing: border-box;
-  text-align: center;
-  text-decoration: none;
-  border: 1px solid #cbd5e1;
-  border-radius: 10px;
-  padding: 13px;
-  color: #334155;
-  font-size: 14px;
-  font-weight: 600;
-  transition: background 0.2s, border-color 0.2s;
+.ql-submit:focus-visible,
+.ql-eye:focus-visible,
+.ql-link:focus-visible,
+.ql-guest-pill:focus-visible {
+  outline: 3px solid #f3ce75;
+  outline-offset: 2px;
 }
-
-.ql-button-secondary:hover {
-  background: #f8fafc;
-  border-color: #94a3b8;
-}
-
-/* =========================
-   Divider
-   ========================= */
-
-.ql-divider {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  margin: 25px 0;
-  color: #94a3b8;
-  font-size: 13px;
-}
-
-.ql-divider::before,
-.ql-divider::after {
-  content: "";
-  flex: 1;
-  height: 1px;
-  background: #e2e8f0;
-}
-
-/* =========================
-   Register
-   ========================= */
-
-.ql-register {
-  text-align: center;
-  margin: 20px 0 0;
-  color: #64748b;
-  font-size: 14px;
-}
-
-.ql-register a {
-  color: #2563eb;
-  font-weight: 600;
-  text-decoration: none;
-}
-
-.ql-register a:hover {
-  color: #1d4ed8;
-}
-
-/* =========================
-   Loading Spinner
-   ========================= */
-
 .ql-spinner {
-  display: inline-block;
-  width: 15px;
-  height: 15px;
-  margin-right: 8px;
+  width: 16px;
+  height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.4);
-  border-top-color: white;
+  border-top-color: #fff;
   border-radius: 50%;
-  animation: spin 0.7s linear infinite;
-  vertical-align: middle;
+  animation: ql-spin 0.7s linear infinite;
+}
+@keyframes ql-spin {
+  to { transform: rotate(360deg); }
 }
 
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
+.ql-signup {
+  margin: 22px 0 0;
+  text-align: center;
+  font-size: 0.82rem;
+  color: var(--muted);
 }
 
-/* =========================
-   Responsive Design
-   ========================= */
-
-@media (max-width: 900px) {
-  .ql-brand {
-    display: none;
-  }
-
-  .ql-form-side {
-    width: 100%;
-    padding: 25px;
-  }
-
-  .ql-mobile-logo {
-    display: block;
-  }
-}
-
-@media (max-width: 500px) {
-  .ql-form-side {
-    padding: 15px;
-  }
-
-  .ql-card {
-    padding: 25px 20px;
-    border: none;
-    box-shadow: none;
-  }
-
-  .ql-title {
-    font-size: 26px;
+@media (prefers-reduced-motion: reduce) {
+  .ql-page *,
+  .ql-page *::before,
+  .ql-page *::after {
+    animation: none !important;
+    transition: none !important;
   }
 }
