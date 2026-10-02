@@ -1,12 +1,18 @@
+import dotenv from "dotenv";
 import pkg from "pg";
+
 const { Pool } = pkg;
 
-const pool = new Pool({
+dotenv.config();
+
+const isProduction = process.env.NODE_ENV === "production";
+
+export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  ssl:
-    process.env.NODE_ENV === "production"
-      ? { rejectUnauthorized: false }
-      : false,
+  ssl: isProduction ? { rejectUnauthorized: false } : false,
+  max: 10,
+  idleTimeoutMillis: 30_000,
+  connectionTimeoutMillis: 5_000,
 });
 
 pool.on("connect", () => {
@@ -14,8 +20,22 @@ pool.on("connect", () => {
 });
 
 pool.on("error", (err) => {
-  console.error("Unexpected DB Error:", err);
-  process.exit(-1);
+  console.error("Unexpected DB error:", err.message);
 });
+
+export async function verifyDatabaseConnection() {
+  if (!process.env.DATABASE_URL) {
+    throw new Error("DATABASE_URL is not defined");
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query("SELECT 1");
+  } finally {
+    client.release();
+  }
+
+  return true;
+}
 
 export default pool;

@@ -67,7 +67,11 @@ export async function register(req, res) {
       passwordHash,
     });
 
-    return res.status(201).json({ message: "Registration successful.", user });
+    return res.status(201).json({
+      message: "Registration successful.",
+      token: createToken(user),
+      user,
+    });
   } catch (error) {
     return res.status(500).json({ message: "Unable to register user right now." });
   }
