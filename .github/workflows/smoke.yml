@@ -1,0 +1,56 @@
+name: Smoke Test
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  smoke:
+    name: Production stack smoke test
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build production stack
+        run: docker compose -f docker-compose.prod.yml build
+
+      - name: Start stack
+        run: docker compose -f docker-compose.prod.yml up -d
+        env:
+          POSTGRES_PASSWORD: ci-postgres-password
+          JWT_SECRET: ci-jwt-secret-not-for-production
+          CLIENT_ORIGIN: http://localhost:8080
+          FRONTEND_PORT: "8080"
+
+      - name: Wait for health
+        run: |
+          docker compose -f docker-compose.prod.yml ps
+          for i in $(seq 1 30); do
+            if curl -fsS http://localhost:8080/healthz >/dev/null 2>&1; then
+              echo "Frontend is up after ${i} attempt(s)"
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Frontend did not become healthy in time"
+          docker compose -f docker-compose.prod.yml logs
+          exit 1
+
+      - name: API health check through nginx proxy
+        run: |
+          curl -fsS http://localhost:8080/api/health | tee /dev/stderr | grep -q '"status":"ok"'
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose -f docker-compose.prod.yml logs --no-color
+
+      - name: Stop stack
+        if: always()
+        run: docker compose -f docker-compose.prod.yml down -v

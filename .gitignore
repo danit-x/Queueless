@@ -4,4 +4,10 @@ dist/
 coverage/
 npm-debug.log*
 .DS_Store
+*.log
+.env.local
+.env.*.local
+*.tsbuildinfo
+.vscode/
+.idea/
 

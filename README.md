@@ -1,6 +1,6 @@
 # QueueLess - Virtual Queue Management System
 
-QueueLess is a university DevOps project for a virtual queue management system. In this first phase, the project provides a clean React frontend, Express REST API, PostgreSQL schema, JWT authentication, and a protected dashboard.
+QueueLess is a university DevOps project for a virtual queue management system. It provides a React frontend, an Express REST API, a PostgreSQL schema, JWT authentication, a protected dashboard, and a containerised deployment with Docker Compose and GitHub Actions.
 
 Queue features are intentionally not implemented yet.
 
@@ -11,11 +11,17 @@ Queue features are intentionally not implemented yet.
 - PostgreSQL
 - JWT and bcrypt
 - npm, Git, Ubuntu on WSL 2
+- Docker, Docker Compose, GitHub Actions
 
 ## Project Structure
 
 ```text
 QueueLess/
+  .github/
+    workflows/
+      ci.yml
+      docker-publish.yml
+      smoke.yml
   frontend/
     src/
       components/
@@ -24,6 +30,11 @@ QueueLess/
       pages/
       services/
       App.jsx
+    public/
+    Dockerfile
+    Dockerfile.dev
+    nginx.conf
+    vite.config.js
   backend/
     src/
       config/
@@ -32,8 +43,12 @@ QueueLess/
       models/
       routes/
       server.js
+    Dockerfile
+    Dockerfile.dev
   database/
-    schema.sql
+    init.sql
+  docker-compose.yml
+  docker-compose.prod.yml
   .env.example
   README.md
 ```
@@ -44,6 +59,7 @@ QueueLess/
 - npm
 - PostgreSQL
 - Git
+- Docker and Docker Compose (for the container workflows)
 
 ## Install Dependencies
 
@@ -61,13 +77,13 @@ Create a database, then run the schema:
 
 ```bash
 createdb queueless
-psql -d queueless -f database/schema.sql
+psql -d queueless -f database/init.sql
 ```
 
 If you run the command from inside the `database` folder, use:
 
 ```bash
-psql -d queueless -f schema.sql
+psql -d queueless -f init.sql
 ```
 
 ## Environment Variables
@@ -179,7 +195,64 @@ Not implemented yet:
 - Notifications
 - WebSockets
 
+## Run with Docker Compose
+
+Copy the root env file and start the full stack:
+
+```bash
+cp .env.example .env
+docker compose up -d --build
+```
+
+- Frontend (Vite dev server): http://localhost:5173
+- Backend API: http://localhost:5000
+- PostgreSQL: `localhost:5432`
+
+`database/init.sql` is mounted into the database container, so the schema is
+created automatically the first time the `db_data` volume is initialized. To
+start over, remove the volume with `docker compose down -v`.
+
+Override the `VITE_API_URL` in `.env` to `http://localhost:5000/api`; the Vite
+dev server also proxies `/api` to the backend container.
+
+Stop the stack with `docker compose down`.
+
+## Production Image Verification
+
+`docker-compose.prod.yml` builds the multi-stage images and serves the built
+frontend through nginx. It only publishes the frontend port, so the API and the
+database stay on the internal network.
+
+```bash
+cp .env.example .env
+# set a real JWT_SECRET and POSTGRES_PASSWORD in .env
+docker compose -f docker-compose.prod.yml up -d --build
+```
+
+The app is served at http://localhost:8080 (override with `FRONTEND_PORT`).
+nginx proxies `/api` to the backend container, so the browser only talks to one
+origin and CORS is not an issue. Verify it responds:
+
+```bash
+curl http://localhost:8080/healthz
+curl http://localhost:8080/api/health
+```
+
+## CI/CD
+
+GitHub Actions workflows live in `.github/workflows/`:
+
+| Workflow | Trigger | Purpose |
+| --- | --- | --- |
+| `ci.yml` | push / PR to `main` | Installs dependencies, builds both apps, builds both Docker images, validates both Compose files |
+| `smoke.yml` | push / PR to `main` | Boots the production Compose stack and checks `/healthz` and `/api/health` |
+| `docker-publish.yml` | tag `v*.*.*` or manual | Publishes both images to GitHub Container Registry |
+
+Images published by `docker-publish.yml` are tagged
+`ghcr.io/<owner>/queueless-backend` and `ghcr.io/<owner>/queueless-frontend`.
+
 ## Future DevOps Phases
 
-Later phases will add Docker, Docker Compose, CI/CD, automated testing, cloud deployment, monitoring, and logging. These are not included in the first phase.
+Later phases will add automated testing, cloud deployment, monitoring, and
+logging.
 
