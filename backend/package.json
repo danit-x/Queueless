@@ -4,15 +4,21 @@
   "description": "QueueLess Express REST API",
   "main": "src/server.js",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "nodemon src/server.js",
-    "start": "node src/server.js"
+    "start": "node src/server.js",
+    "check": "node --check src/server.js && node --check src/config/db.js && node --check src/config/env.js && node --check src/config/initDb.js && node --check src/controllers/authController.js && node --check src/controllers/queueController.js && node --check src/middleware/authMiddleware.js && node --check src/middleware/errorHandler.js && node --check src/models/userModel.js && node --check src/models/queueModel.js && node --check src/models/ticketModel.js && node --check src/models/ticketPresenter.js && node --check src/routes/authRoutes.js && node --check src/routes/queueRoutes.js && node --check src/routes/ticketRoutes.js && node --check src/utils/ApiError.js && node --check src/utils/asyncHandler.js && node --check src/utils/validation.js"
   },
   "dependencies": {
     "bcrypt": "^6.0.0",
     "cors": "^2.8.5",
     "dotenv": "^16.4.5",
     "express": "^4.19.2",
+    "express-rate-limit": "^7.4.1",
+    "helmet": "^7.1.0",
     "jsonwebtoken": "^9.0.2",
     "pg": "^8.12.0"
   },

@@ -1,13 +1,20 @@
 node_modules
 npm-debug.log*
+dist
+coverage
+
+# Secrets: never bake a real .env into an image. .env.example stays for reference.
 .env
 .env.*
 !.env.example
-dist
-coverage
+
+# Repo-only files
 .git
 .gitignore
+.kilo
+.github
 Dockerfile
 Dockerfile.dev
 .dockerignore
 README.md
+*.md

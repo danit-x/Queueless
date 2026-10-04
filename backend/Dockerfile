@@ -14,10 +14,14 @@ COPY --from=deps /app/node_modules ./node_modules
 COPY package.json ./
 COPY src ./src
 
+# Fail the image build rather than the deploy if a module does not parse.
+RUN node --check src/server.js
+
 USER app
 EXPOSE 5000
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
     CMD wget -qO- http://127.0.0.1:${PORT:-5000}/api/health || exit 1
 
+# SIGTERM reaches node directly so graceful shutdown can drain the pool.
 CMD ["node", "src/server.js"]

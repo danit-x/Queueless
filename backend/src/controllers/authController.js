@@ -1,119 +1,120 @@
 import bcrypt from "bcrypt";
-import jwt from "jsonwebtoken";
-import { createUser, findUserByEmail } from "../models/userModel.js";
+import crypto from "node:crypto";
+import { env } from "../config/env.js";
+import { createUser, findUserByEmailWithHash, toPublicUser } from "../models/userModel.js";
+import { signAccessToken } from "../middleware/authMiddleware.js";
+import { ApiError } from "../utils/ApiError.js";
+import { asyncHandler } from "../utils/asyncHandler.js";
+import { isValidEmail, normalizeEmail, PG_UNIQUE_VIOLATION } from "../utils/validation.js";
 
-const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const MIN_PASSWORD_LENGTH = 8;
+const MAX_PASSWORD_LENGTH = 72; // bcrypt truncates beyond 72 bytes.
 
 function validateRegistration({ name, email, password, confirmPassword }) {
-  if (!name?.trim() || !email?.trim() || !password || !confirmPassword) {
-    return "All fields are required.";
+  if (!name?.trim() || !email?.trim() || !password) {
+    throw ApiError.badRequest("Name, email and password are required.");
   }
 
-  if (!emailPattern.test(email)) {
-    return "Please enter a valid email address.";
+  if (name.trim().length > 120) {
+    throw ApiError.badRequest("Name must be 120 characters or fewer.");
   }
 
-  if (password.length < 8) {
-    return "Password must be at least 8 characters long.";
+  if (!isValidEmail(email)) {
+    throw ApiError.badRequest("Please enter a valid email address.");
   }
 
-  if (password !== confirmPassword) {
-    return "Passwords do not match.";
+  if (typeof password !== "string" || password.length < MIN_PASSWORD_LENGTH) {
+    throw ApiError.badRequest(
+      `Password must be at least ${MIN_PASSWORD_LENGTH} characters long.`
+    );
   }
 
-  return null;
+  if (password.length > MAX_PASSWORD_LENGTH) {
+    throw ApiError.badRequest(
+      `Password must be ${MAX_PASSWORD_LENGTH} characters or fewer.`
+    );
+  }
+
+  if (confirmPassword !== undefined && password !== confirmPassword) {
+    throw ApiError.badRequest("Passwords do not match.");
+  }
 }
 
-function validateLogin({ email, password }) {
-  if (!email?.trim() || !password) {
-    return "Email and password are required.";
-  }
-
-  if (!emailPattern.test(email)) {
-    return "Please enter a valid email address.";
-  }
-
-  return null;
-}
-
-function createToken(user) {
-  return jwt.sign(
-    { userId: user.id, email: user.email, role: user.role },
-    process.env.JWT_SECRET,
-    { expiresIn: "1h" }
+// A real hash of an unguessable value, computed once on the first failed login.
+// Comparing against it keeps the response time of "unknown email" and "wrong
+// password" indistinguishable, so the endpoint cannot be used to enumerate
+// registered accounts.
+let decoyHashPromise = null;
+function getDecoyHash() {
+  decoyHashPromise ??= bcrypt.hash(
+    `decoy-${crypto.randomUUID()}`,
+    env.bcryptRounds
   );
+  return decoyHashPromise;
 }
 
-export async function register(req, res) {
-  const validationError = validateRegistration(req.body);
+/**
+ * POST /api/auth/register
+ *
+ * Hashing happens before the insert so the plaintext password is never passed to
+ * the database layer, and any failure still reaches the global error handler.
+ */
+export const register = asyncHandler(async (req, res) => {
+  const { name, email, password, confirmPassword } = req.body ?? {};
 
-  if (validationError) {
-    return res.status(400).json({ message: validationError });
-  }
+  validateRegistration({ name, email, password, confirmPassword });
 
-  const { name, email, password } = req.body;
+  const passwordHash = await bcrypt.hash(password, env.bcryptRounds);
 
+  let user;
   try {
-    const existingUser = await findUserByEmail(email);
-
-    if (existingUser) {
-      return res.status(409).json({ message: "An account with this email already exists." });
-    }
-
-    const passwordHash = await bcrypt.hash(password, 12);
-    const user = await createUser({
+    user = await createUser({
       name: name.trim(),
-      email: email.trim(),
+      email: normalizeEmail(email),
       passwordHash,
     });
-
-    return res.status(201).json({
-      message: "Registration successful.",
-      token: createToken(user),
-      user,
-    });
   } catch (error) {
-    return res.status(500).json({ message: "Unable to register user right now." });
-  }
-}
-
-export async function login(req, res) {
-  const validationError = validateLogin(req.body);
-
-  if (validationError) {
-    return res.status(400).json({ message: validationError });
-  }
-
-  const { email, password } = req.body;
-
-  try {
-    const userRecord = await findUserByEmail(email);
-
-    if (!userRecord) {
-      return res.status(401).json({ message: "Invalid email or password." });
+    // The pre-insert check is advisory; the unique index is the real guard, so a
+    // concurrent duplicate must return 409 rather than 500.
+    if (error.code === PG_UNIQUE_VIOLATION) {
+      throw ApiError.conflict("An account with this email already exists.");
     }
-
-    const passwordMatches = await bcrypt.compare(password, userRecord.password_hash);
-
-    if (!passwordMatches) {
-      return res.status(401).json({ message: "Invalid email or password." });
-    }
-
-    const user = {
-      id: userRecord.id,
-      name: userRecord.name,
-      email: userRecord.email,
-      role: userRecord.role,
-      created_at: userRecord.created_at,
-    };
-
-    return res.json({ token: createToken(user), user });
-  } catch (error) {
-    return res.status(500).json({ message: "Unable to log in right now." });
+    throw error;
   }
-}
 
-export async function getMe(req, res) {
-  return res.json({ user: req.user });
-}
+  const publicUser = toPublicUser(user);
 
+  return res.status(201).json({
+    message: "Registration successful.",
+    token: signAccessToken(publicUser),
+    user: publicUser,
+  });
+});
+
+/** POST /api/auth/login */
+export const login = asyncHandler(async (req, res) => {
+  const { email, password } = req.body ?? {};
+
+  if (!email?.trim() || !password) {
+    throw ApiError.badRequest("Email and password are required.");
+  }
+
+  if (!isValidEmail(email)) {
+    throw ApiError.badRequest("Please enter a valid email address.");
+  }
+
+  const record = await findUserByEmailWithHash(email);
+  const passwordHash = record?.password_hash ?? (await getDecoyHash());
+  const passwordMatches = await bcrypt.compare(password, passwordHash);
+
+  if (!record || !passwordMatches) {
+    throw ApiError.unauthorized("Invalid email or password.");
+  }
+
+  const user = toPublicUser(record);
+
+  return res.json({ token: signAccessToken(user), user });
+});
+
+/** GET /api/auth/me */
+export const getMe = asyncHandler(async (req, res) => res.json({ user: toPublicUser(req.user) }));

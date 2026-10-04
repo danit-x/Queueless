@@ -12,6 +12,9 @@ export const POLL_INTERVAL_MS = 4000;
 // Customers get a "coming soon" alert once this many people or fewer are ahead.
 export const TURN_SOON_THRESHOLD = 2;
 
+// Must match the roles in database/schema.sql: customer, merchant, admin.
+export const STAFF_ROLES = ["merchant", "admin"];
+
 export function canManageQueues(user) {
-  return usingMockApi || ["staff", "admin"].includes(user?.role);
+  return usingMockApi || STAFF_ROLES.includes(user?.role);
 }
