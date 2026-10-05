@@ -1,15 +1,8 @@
 import { useEffect, useState } from "react";
+import { Link } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
+import { canManageQueues, getMyTickets, getQueues, joinQueue } from "../services/queueService";
 import "./Dashboard.css";
-
-// Services customers can queue for.
-// TODO: load these from the backend later (GET /api/queues).
-const SERVICES = [
-  { id: "barber", icon: "💈", name: "Barber", prefix: "B", waiting: 4 },
-  { id: "restaurant", icon: "🍽️", name: "Restaurant", prefix: "R", waiting: 6 },
-  { id: "clinic", icon: "🏥", name: "Clinic", prefix: "C", waiting: 3 },
-  { id: "bank", icon: "🏦", name: "Bank", prefix: "K", waiting: 5 },
-  { id: "repair", icon: "🔧", name: "Repair", prefix: "F", waiting: 2 },
-];
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -19,36 +12,64 @@ function getGreeting() {
 }
 
 export default function Dashboard() {
-  const [ticket, setTicket] = useState(null);
+  const { user } = useAuth();
+  const [queues, setQueues] = useState([]);
+  const [tickets, setTickets] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [joiningQueueId, setJoiningQueueId] = useState(null);
 
-  // Demo only: the line moves forward every 8 seconds.
-  // Replace with a call to the backend (GET /api/tickets/:id) later.
   useEffect(() => {
-    if (!ticket || ticket.ahead === 0) return;
-    const timer = setTimeout(() => {
-      setTicket((t) => ({ ...t, ahead: t.ahead - 1, serving: t.serving + 1 }));
-    }, 8000);
-    return () => clearTimeout(timer);
-  }, [ticket]);
+    let mounted = true;
 
-  function joinQueue(service) {
-    // TODO: replace with POST /api/queues/:id/tickets
-    const serving = 20 + Math.floor(Math.random() * 5);
-    setTicket({
-      service,
-      number: serving + service.waiting + 1,
-      serving,
-      ahead: service.waiting,
-    });
-  }
+    async function loadDashboard() {
+      setLoading(true);
+      try {
+        const [queueData, ticketData] = await Promise.all([
+          getQueues(),
+          getMyTickets({ status: "active" }),
+        ]);
+        if (!mounted) return;
+        setQueues(queueData.queues);
+        setTickets(ticketData.tickets);
+        setError("");
+      } catch (loadError) {
+        if (mounted) setError(loadError.message || "Unable to load queues.");
+      } finally {
+        if (mounted) setLoading(false);
+      }
+    }
 
-  function leaveQueue() {
-    setTicket(null);
-  }
+    loadDashboard();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   function scrollToServices() {
     document.getElementById("services")?.scrollIntoView({ behavior: "smooth" });
   }
+
+  async function handleJoinQueue(queueId) {
+    setJoiningQueueId(queueId);
+    setError("");
+    try {
+      await joinQueue(queueId);
+      const [queueData, ticketData] = await Promise.all([
+        getQueues(),
+        getMyTickets({ status: "active" }),
+      ]);
+      setQueues(queueData.queues);
+      setTickets(ticketData.tickets);
+    } catch (joinError) {
+      setError(joinError.message || "Unable to join this queue.");
+    } finally {
+      setJoiningQueueId(null);
+    }
+  }
+
+  const activeTicket = tickets[0] ?? null;
+  const canManage = canManageQueues(user);
 
   return (
     <div className="cd-page">
@@ -63,7 +84,9 @@ export default function Dashboard() {
         <section className="cd-card cd-current">
           <h2>Your Current Queue</h2>
 
-          {!ticket ? (
+          {loading ? (
+            <p role="status" className="cd-empty">Loading your queue...</p>
+          ) : !activeTicket ? (
             <div className="cd-empty">
               <p>No active queue</p>
               <button className="cd-btn" onClick={scrollToServices}>
@@ -73,39 +96,31 @@ export default function Dashboard() {
           ) : (
             <div className="cd-ticket">
               <p className="cd-ticket-place">
-                {ticket.service.icon} {ticket.service.name}
+                {activeTicket.queueName}
               </p>
 
               <div className="cd-numbers">
                 <div className="cd-box cd-box-mine">
                   <span>Your number</span>
-                  <strong>
-                    {ticket.service.prefix}
-                    {ticket.number}
-                  </strong>
+                  <strong>{activeTicket.code}</strong>
                 </div>
                 <div className="cd-box">
                   <span>Now serving</span>
-                  <strong>
-                    {ticket.service.prefix}
-                    {ticket.serving}
-                  </strong>
+                  <strong>{activeTicket.currentServing ?? "—"}</strong>
                 </div>
                 <div className="cd-box">
                   <span>People ahead</span>
-                  <strong>{ticket.ahead}</strong>
+                  <strong>{activeTicket.peopleAhead}</strong>
                 </div>
               </div>
 
-              {ticket.ahead === 0 ? (
+              {activeTicket.status === "serving" ? (
                 <p className="cd-alert cd-alert-now">✅ It's your turn! Please go to the counter.</p>
-              ) : ticket.ahead <= 2 ? (
+              ) : activeTicket.peopleAhead <= 2 ? (
                 <p className="cd-alert">🔔 Your turn is coming soon.</p>
               ) : null}
 
-              <button className="cd-btn cd-btn-outline" onClick={leaveQueue}>
-                Leave Queue
-              </button>
+              <Link className="cd-btn" to={`/tickets/${activeTicket.id}`}>View ticket</Link>
             </div>
           )}
         </section>
@@ -113,19 +128,38 @@ export default function Dashboard() {
         {/* Services */}
         <section id="services">
           <h2 className="cd-title">Available Services</h2>
+          {error && <p className="cd-alert" role="alert">{error}</p>}
+          {loading ? (
+            <p role="status">Loading queues...</p>
+          ) : queues.length === 0 ? (
+            <p>No active queues are available right now.</p>
+          ) : (
           <div className="cd-grid">
-            {SERVICES.map((service) => (
-              <div key={service.id} className="cd-card cd-service">
-                <span className="cd-icon">{service.icon}</span>
-                <h3>{service.name}</h3>
-                <p>{service.waiting} people waiting</p>
-                <button className="cd-btn" onClick={() => joinQueue(service)} disabled={Boolean(ticket)}>
-                  Join Queue
-                </button>
+            {queues.map((queue) => (
+              <div key={queue.id} className="cd-card cd-service">
+                <span className="cd-icon">⌛</span>
+                <h3>{queue.name}</h3>
+                <p>{queue.category} · {queue.waitingCount} waiting</p>
+                <p>Now serving {queue.currentServing ?? "—"}</p>
+                {activeTicket?.queueId === queue.id ? (
+                  <Link className="cd-btn" to={`/tickets/${activeTicket.id}`}>View ticket {activeTicket.code}</Link>
+                ) : (
+                  <button
+                    className="cd-btn"
+                    onClick={() => handleJoinQueue(queue.id)}
+                    disabled={loading || Boolean(activeTicket) || joiningQueueId !== null}
+                  >
+                    {joiningQueueId === queue.id ? "Joining..." : "Join Queue"}
+                  </button>
+                )}
+                {canManage && (
+                  <Link className="cd-note" to={`/queues/${queue.id}/manage`}>Manage queue</Link>
+                )}
               </div>
             ))}
           </div>
-          {ticket && <p className="cd-note">You can join one queue at a time.</p>}
+          )}
+          {activeTicket && <p className="cd-note">You can join one queue at a time.</p>}
         </section>
       </main>
     </div>

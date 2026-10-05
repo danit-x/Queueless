@@ -1,7 +1,18 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
-import { api } from "../services/api";
+import { AUTH_UNAUTHORIZED_EVENT } from "../services/api";
+import {
+  getCurrentUser,
+  login as loginUser,
+  register as registerUser,
+} from "../services/authService";
 
-const AuthContext = createContext(null);
+const AuthContext = createContext(undefined);
+
+function persistSession(data) {
+  localStorage.setItem("queueless_token", data.token);
+  localStorage.setItem("queueless_user", JSON.stringify(data.user));
+  return data.user;
+}
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(() => {
@@ -18,8 +29,7 @@ export function AuthProvider({ children }) {
       return;
     }
 
-    api
-      .me()
+    getCurrentUser()
       .then(({ user: currentUser }) => {
         setUser(currentUser);
         localStorage.setItem("queueless_user", JSON.stringify(currentUser));
@@ -32,12 +42,29 @@ export function AuthProvider({ children }) {
       .finally(() => setLoading(false));
   }, []);
 
+  useEffect(() => {
+    function handleUnauthorized() {
+      localStorage.removeItem("queueless_token");
+      localStorage.removeItem("queueless_user");
+      setUser(null);
+    }
+
+    window.addEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+    return () => window.removeEventListener(AUTH_UNAUTHORIZED_EVENT, handleUnauthorized);
+  }, []);
+
   async function login(credentials) {
-    const data = await api.login(credentials);
-    localStorage.setItem("queueless_token", data.token);
-    localStorage.setItem("queueless_user", JSON.stringify(data.user));
-    setUser(data.user);
-    return data.user;
+    const data = await loginUser(credentials.email, credentials.password);
+    const authenticatedUser = persistSession(data);
+    setUser(authenticatedUser);
+    return authenticatedUser;
+  }
+
+  async function register({ name, email, password }) {
+    const data = await registerUser(name, email, password);
+    const authenticatedUser = persistSession(data);
+    setUser(authenticatedUser);
+    return authenticatedUser;
   }
 
   function logout() {
@@ -52,6 +79,7 @@ export function AuthProvider({ children }) {
       loading,
       isAuthenticated: Boolean(user),
       login,
+      register,
       logout,
     }),
     [user, loading]
@@ -63,10 +91,9 @@ export function AuthProvider({ children }) {
 export function useAuth() {
   const context = useContext(AuthContext);
 
-  if (!context) {
+  if (context === undefined) {
     throw new Error("useAuth must be used inside AuthProvider");
   }
 
   return context;
 }
-

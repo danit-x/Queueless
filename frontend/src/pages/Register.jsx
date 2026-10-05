@@ -1,9 +1,10 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 import AuthLayout from "../layouts/AuthLayout";
-import { api } from "../services/api";
 
 export default function Register() {
+  const { register } = useAuth();
   const navigate = useNavigate();
   const [form, setForm] = useState({
     name: "",
@@ -12,7 +13,6 @@ export default function Register() {
     confirmPassword: "",
   });
   const [error, setError] = useState("");
-  const [success, setSuccess] = useState("");
   const [submitting, setSubmitting] = useState(false);
 
   function updateField(event) {
@@ -22,13 +22,11 @@ export default function Register() {
   async function handleSubmit(event) {
     event.preventDefault();
     setError("");
-    setSuccess("");
     setSubmitting(true);
 
     try {
-      await api.register(form);
-      setSuccess("Account created. Redirecting to login...");
-      setTimeout(() => navigate("/login"), 900);
+      await register(form);
+      navigate("/dashboard", { replace: true });
     } catch (error) {
       setError(error.message);
     } finally {
@@ -40,7 +38,6 @@ export default function Register() {
     <AuthLayout title="Create account" subtitle="Join virtual queues without waiting in place.">
       <form className="space-y-4" onSubmit={handleSubmit}>
         {error && <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p>}
-        {success && <p className="rounded-md bg-emerald-50 p-3 text-sm text-emerald-700">{success}</p>}
         <label className="block">
           <span className="text-sm font-medium text-slate-700">Full name</span>
           <input
@@ -101,4 +98,3 @@ export default function Register() {
     </AuthLayout>
   );
 }
-

@@ -160,6 +160,7 @@
 
 /* ---------- Buttons ---------- */
 .cd-btn {
+  display: inline-block;
   padding: 10px 20px;
   border: 0;
   border-radius: 10px;
@@ -169,6 +170,7 @@
   font-size: 0.9rem;
   font-weight: 600;
   cursor: pointer;
+  text-decoration: none;
 }
 .cd-btn:hover:not(:disabled) {
   background: var(--brand-700);

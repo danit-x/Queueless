@@ -3,14 +3,14 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import AppLayout from "../layouts/AppLayout";
 import TurnAlert from "../components/TurnAlert";
 import { usePolling } from "../hooks/usePolling";
-import { POLL_INTERVAL_MS, queueApi } from "../services/queueService";
+import { getMyTickets, leaveTicket, POLL_INTERVAL_MS } from "../services/queueService";
 
 const MAX_QUEUE_DOTS = 10;
 
 const statusLabels = {
   waiting: { text: "Waiting", className: "bg-brand-50 text-brand-700" },
   serving: { text: "Your turn", className: "bg-emerald-50 text-emerald-700" },
-  served: { text: "Served", className: "bg-slate-100 text-slate-700" },
+  completed: { text: "Completed", className: "bg-slate-100 text-slate-700" },
   cancelled: { text: "Left queue", className: "bg-slate-100 text-slate-700" },
 };
 
@@ -35,14 +35,26 @@ export default function Ticket() {
   const [ticket, setTicket] = useState(null);
   const [error, setError] = useState("");
   const [leaving, setLeaving] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   async function refresh() {
     try {
-      const data = await queueApi.getTicket(ticketId);
-      setTicket(data.ticket);
+      const data = await getMyTickets({ status: "all" });
+      const currentTicket = data.tickets.find((item) => item.id === ticketId);
+      if (!currentTicket) {
+        setTicket(null);
+        setError("Ticket not found in your ticket history.");
+        return;
+      }
+      setTicket({
+        ...currentTicket,
+        status: currentTicket.status === "served" ? "completed" : currentTicket.status,
+      });
       setError("");
     } catch (error) {
       setError(error.message);
+    } finally {
+      setLoading(false);
     }
   }
 
@@ -53,7 +65,7 @@ export default function Ticket() {
 
     setLeaving(true);
     try {
-      await queueApi.leaveTicket(ticketId);
+      await leaveTicket(ticketId);
       navigate("/dashboard");
     } catch (error) {
       setError(error.message);
@@ -64,11 +76,11 @@ export default function Ticket() {
   if (!ticket) {
     return (
       <AppLayout>
-        {error ? (
+        {loading ? (
+          <p className="text-center text-slate-600" role="status">Loading ticket...</p>
+        ) : error ? (
           <p className="rounded-md bg-red-50 p-3 text-sm text-red-700">{error}</p>
-        ) : (
-          <p className="text-center text-slate-600">Loading...</p>
-        )}
+        ) : null}
         <Link to="/dashboard" className="mt-4 inline-block text-sm font-medium text-brand-700 hover:underline">
           ← Back to dashboard
         </Link>
@@ -76,7 +88,7 @@ export default function Ticket() {
     );
   }
 
-  const status = statusLabels[ticket.status];
+  const status = statusLabels[ticket.status] ?? statusLabels.cancelled;
   const active = ticket.status === "waiting" || ticket.status === "serving";
 
   return (
@@ -126,7 +138,7 @@ export default function Ticket() {
             </div>
           )}
 
-          {ticket.status === "served" && (
+          {ticket.status === "completed" && (
             <p className="mt-6 text-sm text-slate-600">This ticket has been served. Thanks for using QueueLess!</p>
           )}
         </section>

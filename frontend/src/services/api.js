@@ -1,75 +1,45 @@
-const API_URL = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+import axios from "axios";
 
-async function request(path, options = {}) {
-  const token = localStorage.getItem("queueless_token");
-  const headers = {
+export const AUTH_UNAUTHORIZED_EVENT = "queueless:unauthorized";
+
+export const apiClient = axios.create({
+  baseURL: import.meta.env.VITE_API_URL || "http://localhost:5000/api",
+  headers: {
     "Content-Type": "application/json",
-    ...(options.headers || {}),
-  };
+  },
+});
+
+apiClient.interceptors.request.use((config) => {
+  const token = localStorage.getItem("queueless_token");
 
   if (token) {
-    headers.Authorization = `Bearer ${token}`;
+    config.headers.Authorization = `Bearer ${token}`;
+  } else {
+    delete config.headers.Authorization;
   }
 
-  try {
-    const response = await fetch(`${API_URL}${path}`, {
-      ...options,
-      headers,
-    });
-    const data = await response.json().catch(() => ({}));
+  return config;
+});
 
-    if (!response.ok) {
-      throw new Error(data.message || "Something went wrong. Please try again.");
+apiClient.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem("queueless_token");
+      localStorage.removeItem("queueless_user");
+      window.dispatchEvent(new Event(AUTH_UNAUTHORIZED_EVENT));
+
+      if (window.location.pathname !== "/login") {
+        window.location.assign("/login");
+      }
     }
 
-    return data;
-  } catch (error) {
-    if (error instanceof TypeError) {
-      throw new Error("Backend is unavailable. Please check that the API is running.");
+    if (error.response?.data?.message) {
+      error.message = error.response.data.message;
+    } else if (error.request && !error.response) {
+      error.message = "Backend is unavailable. Please check that the API is running.";
     }
-    throw error;
+
+    return Promise.reject(error);
   }
-}
-
-export const api = {
-  register(payload) {
-    return request("/auth/register", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
-  login(payload) {
-    return request("/auth/login", {
-      method: "POST",
-      body: JSON.stringify(payload),
-    });
-  },
-  me() {
-    return request("/auth/me");
-  },
-};
-
-export const queueApi = {
-  listQueues() {
-    return request("/queues");
-  },
-  getQueue(queueId) {
-    return request(`/queues/${queueId}`);
-  },
-  joinQueue(queueId) {
-    return request(`/queues/${queueId}/join`, { method: "POST" });
-  },
-  myTickets() {
-    return request("/tickets/me");
-  },
-  getTicket(ticketId) {
-    return request(`/tickets/${ticketId}`);
-  },
-  leaveTicket(ticketId) {
-    return request(`/tickets/${ticketId}`, { method: "DELETE" });
-  },
-  serveNext(queueId) {
-    return request(`/queues/${queueId}/next`, { method: "POST" });
-  },
-};
-
+);
