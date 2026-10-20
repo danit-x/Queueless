@@ -9,7 +9,17 @@ const moduleDir = path.dirname(fileURLToPath(import.meta.url));
 // Columns the API depends on. Used by verifySchema() to detect a database that
 // predates the current schema.
 const REQUIRED_COLUMNS = Object.freeze({
-  users: ["id", "name", "email", "password_hash", "role", "created_at"],
+  users: [
+    "id",
+    "name",
+    "email",
+    "password_hash",
+    "role",
+    "phone_number",
+    "profile_photo",
+    "profile_photo_mime",
+    "created_at",
+  ],
   queues: [
     "id",
     "name",
