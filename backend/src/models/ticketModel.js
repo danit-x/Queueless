@@ -76,7 +76,7 @@ export async function getTicketView(ticketId) {
     [ticketId]
   );
 
-  return rows[0] ?? null;
+  return mapTicketView(rows[0]);
 }
 
 /**

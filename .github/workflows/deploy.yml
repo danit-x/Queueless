@@ -1,0 +1,86 @@
+name: Deploy to Lab Server
+
+# Runs on the team's lab PC through a GitHub self-hosted runner.
+# The runner connects out to GitHub, so the lab PC needs no open inbound
+# ports and no SSH access. See docs/lab-server-setup.md.
+
+on:
+  # Deploy only after CI has passed on main.
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+  workflow_dispatch:
+
+# Never run two deploys at once on the same machine.
+concurrency:
+  group: deploy-lab
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  deploy:
+    name: Deploy production stack
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
+    runs-on: [self-hosted, linux, queueless-lab]
+    environment: lab
+    env:
+      COMPOSE_FILE: docker-compose.prod.yml
+      POSTGRES_PASSWORD: ${{ secrets.POSTGRES_PASSWORD }}
+      JWT_SECRET: ${{ secrets.JWT_SECRET }}
+      CLIENT_ORIGIN: ${{ vars.CLIENT_ORIGIN }}
+      FRONTEND_PORT: ${{ vars.FRONTEND_PORT || '8080' }}
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # For workflow_run, deploy the exact commit CI tested.
+          ref: ${{ github.event.workflow_run.head_sha || github.sha }}
+
+      - name: Check required secrets
+        run: |
+          missing=0
+          [ -n "$POSTGRES_PASSWORD" ] || { echo "::error::Secret POSTGRES_PASSWORD is not set"; missing=1; }
+          [ ${#JWT_SECRET} -ge 32 ] || { echo "::error::Secret JWT_SECRET must be at least 32 characters"; missing=1; }
+          [ -n "$CLIENT_ORIGIN" ] || { echo "::error::Variable CLIENT_ORIGIN is not set (e.g. http://10.0.0.25:8080)"; missing=1; }
+          exit $missing
+
+      - name: Check Docker access
+        run: |
+          docker version --format 'Docker {{.Server.Version}}'
+          docker compose version
+
+      - name: Build images
+        run: docker compose build --pull
+
+      - name: Start / update stack
+        run: docker compose up -d --remove-orphans
+
+      - name: Wait for backend health
+        run: |
+          for i in $(seq 1 30); do
+            status=$(docker inspect --format '{{.State.Health.Status}}' queueless-prod-backend 2>/dev/null || echo missing)
+            echo "Attempt $i: backend is $status"
+            [ "$status" = "healthy" ] && exit 0
+            sleep 5
+          done
+          echo "::error::Backend did not become healthy in time"
+          exit 1
+
+      - name: Check API through nginx
+        run: |
+          docker exec queueless-prod-frontend wget -qO- http://127.0.0.1/api/health | tee /dev/stderr | grep -q '"status":"ok"'
+
+      - name: Show running containers
+        if: always()
+        run: docker compose ps
+
+      - name: Dump logs on failure
+        if: failure()
+        run: docker compose logs --no-color --tail=200
+
+      - name: Remove dangling images
+        if: success()
+        run: docker image prune -f

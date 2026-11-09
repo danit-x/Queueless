@@ -1,5 +1,6 @@
 import { apiClient } from "./api";
 
+// Supports status, category, and mine filters from the queues API.
 export async function getQueues(params) {
   const { data } = await apiClient.get("/queues", { params });
   return data;

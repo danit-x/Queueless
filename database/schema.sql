@@ -14,6 +14,9 @@ CREATE TABLE IF NOT EXISTS users (
   email VARCHAR(255) NOT NULL UNIQUE,
   password_hash TEXT NOT NULL,
   role VARCHAR(30) NOT NULL DEFAULT 'customer',
+  phone_number VARCHAR(30),
+  profile_photo BYTEA,
+  profile_photo_mime VARCHAR(30),
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
@@ -57,6 +60,9 @@ CREATE TABLE IF NOT EXISTS tickets (
 -- Column back-fill for databases created before these fields existed.
 -- ---------------------------------------------------------------------------
 ALTER TABLE users ALTER COLUMN role SET DEFAULT 'customer';
+ALTER TABLE users ADD COLUMN IF NOT EXISTS phone_number VARCHAR(30);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo BYTEA;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS profile_photo_mime VARCHAR(30);
 
 ALTER TABLE queues ADD COLUMN IF NOT EXISTS category VARCHAR(60) NOT NULL DEFAULT 'General';
 ALTER TABLE queues ADD COLUMN IF NOT EXISTS ticket_prefix VARCHAR(3) NOT NULL DEFAULT 'Q';

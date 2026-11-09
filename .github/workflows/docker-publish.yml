@@ -33,7 +33,6 @@ jobs:
             context: ./frontend
             build_args: |
               VITE_API_URL=/api
-              VITE_USE_MOCK_API=false
 
     steps:
       - uses: actions/checkout@v4

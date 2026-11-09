@@ -738,3 +738,12 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ---------- Staff: your queues ---------- */
+.cd-staff-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}

@@ -59,7 +59,7 @@ QueueLess/
 
 ## Prerequisites
 
-- Node.js 18 or newer
+- Node.js 20 or newer
 - npm
 - PostgreSQL
 - Git
@@ -101,7 +101,7 @@ paused, and closed statuses. The seed can be disabled with
 
 ### Becoming a merchant or admin
 
-Registration always creates a `customer`. Promote an account with SQL:
+Registration always creates a `customer`. There is no admin UI for roles yet, so promote an account with SQL:
 
 ```bash
 psql -d queueless -c "UPDATE users SET role='merchant' WHERE email='you@example.com';"
@@ -134,7 +134,6 @@ Create `frontend/.env` from `frontend/.env.example`:
 
 ```env
 VITE_API_URL=http://localhost:5000/api
-VITE_USE_MOCK_API=false
 ```
 
 The actual `.env` files are ignored by Git.
@@ -157,6 +156,28 @@ npm run dev
 
 The app runs at `http://localhost:5173`.
 
+## Running tests
+
+The backend has an integration test suite in `backend/tests/` (Node's built-in
+`node:test` runner plus `supertest`). It drives `createApp()` directly, so no
+port is bound, but it needs a real PostgreSQL. Point it at a **dedicated** test
+database: tests create users and queues with unique emails and leave them behind.
+
+```bash
+docker run -d --name queueless-test-db -p 55432:5432 -e POSTGRES_USER=queueless -e POSTGRES_PASSWORD=queueless -e POSTGRES_DB=queueless_test postgres:16-alpine
+```
+
+```bash
+cd backend
+DATABASE_URL=postgres://queueless:queueless@localhost:55432/queueless_test JWT_SECRET=any-local-test-secret-of-32-plus-chars npm test
+```
+
+The suite applies `database/schema.sql` itself if the tables are missing, and
+defaults `NODE_ENV=test` and `BCRYPT_ROUNDS=4` to keep it fast. On PowerShell,
+set the variables with `$env:DATABASE_URL='...'` first. CI runs the same
+suite against a `postgres:16-alpine` service container before building the
+Docker image.
+
 ## API Endpoints
 
 Every endpoint except the two auth entry points and the health checks requires
@@ -167,28 +188,32 @@ that message to the user.
 
 ### Authentication
 
-| Method | Path | Access | Response |
-| --- | --- | --- | --- |
-| `POST` | `/api/auth/register` | public | `201 { message, token, user }` |
-| `POST` | `/api/auth/login` | public | `200 { token, user }` |
-| `GET` | `/api/auth/me` | authenticated | `200 { user }` |
+| Method | Path                 | Access        | Response                       |
+| ------ | -------------------- | ------------- | ------------------------------ |
+| `POST` | `/api/auth/register` | public        | `201 { message, token, user }` |
+| `POST` | `/api/auth/login`    | public        | `200 { token, user }`          |
+| `GET`  | `/api/auth/me`       | authenticated | `200 { user }`                 |
+| `PATCH` | `/api/auth/me`      | authenticated | `200 { user }` (name, email, phoneNumber) |
+| `GET`  | `/api/auth/me/photo` | authenticated | image bytes, `404` if none     |
+| `PUT`  | `/api/auth/me/photo` | authenticated | `200 { user }` (raw JPEG/PNG/WebP body, max 2 MB) |
+| `DELETE` | `/api/auth/me/photo` | authenticated | `200 { user }`             |
 
 `register` and `login` are rate limited per IP.
 
 ### Queues
 
-| Method | Path | Access | Response |
-| --- | --- | --- | --- |
-| `GET` | `/api/queues` | authenticated | `200 { queues, count }` |
-| `POST` | `/api/queues` | merchant, admin | `201 { queue }` |
-| `GET` | `/api/queues/:queueId` | authenticated | `200 { queue }` |
-| `PATCH` | `/api/queues/:queueId` | owner, admin | `200 { queue }` |
-| `PATCH` | `/api/queues/:queueId/status` | owner, admin | `200 { queue }` |
-| `DELETE` | `/api/queues/:queueId` | owner, admin | `200 { message }` |
-| `POST` | `/api/queues/:queueId/join` | authenticated | `201 { ticket }` |
-| `POST` | `/api/queues/:queueId/next` | owner, admin | `200 { queue }` |
-| `GET` | `/api/queues/:queueId/tickets` | owner, admin | `200 { tickets, count }` |
-| `GET` | `/api/queues/my-tickets` | authenticated | `200 { tickets, count }` |
+| Method   | Path                           | Access          | Response                 |
+| -------- | ------------------------------ | --------------- | ------------------------ |
+| `GET`    | `/api/queues`                  | authenticated   | `200 { queues, count }`  |
+| `POST`   | `/api/queues`                  | merchant, admin | `201 { queue }`          |
+| `GET`    | `/api/queues/:queueId`         | authenticated   | `200 { queue }`          |
+| `PATCH`  | `/api/queues/:queueId`         | owner, admin    | `200 { queue }`          |
+| `PATCH`  | `/api/queues/:queueId/status`  | owner, admin    | `200 { queue }`          |
+| `DELETE` | `/api/queues/:queueId`         | owner, admin    | `200 { message }`        |
+| `POST`   | `/api/queues/:queueId/join`    | authenticated   | `201 { ticket }`         |
+| `POST`   | `/api/queues/:queueId/next`    | owner, admin    | `200 { queue }`          |
+| `GET`    | `/api/queues/:queueId/tickets` | owner, admin    | `200 { tickets, count }` |
+| `GET`    | `/api/queues/my-tickets`       | authenticated   | `200 { tickets, count }` |
 
 `GET /api/queues` accepts `?status=active|paused|closed|all` (default `active`),
 `?category=` for an exact case-insensitive category match, and `?mine=true`.
@@ -202,12 +227,12 @@ when the queue is paused or closed. `POST /api/queues/:queueId/next` returns
 
 ### Tickets
 
-| Method | Path | Access | Response |
-| --- | --- | --- | --- |
-| `GET` | `/api/tickets/me` | authenticated | `200 { tickets, count }` |
-| `GET` | `/api/tickets/:ticketId` | owner, queue owner, admin | `200 { ticket }` |
-| `DELETE` | `/api/tickets/:ticketId` | owner, queue owner, admin | `200 { message, ticket }` |
-| `PATCH` | `/api/tickets/:ticketId/complete` | owner, queue owner, admin | `200 { ticket }` |
+| Method   | Path                              | Access                    | Response                  |
+| -------- | --------------------------------- | ------------------------- | ------------------------- |
+| `GET`    | `/api/tickets/me`                 | authenticated             | `200 { tickets, count }`  |
+| `GET`    | `/api/tickets/:ticketId`          | owner, queue owner, admin | `200 { ticket }`          |
+| `DELETE` | `/api/tickets/:ticketId`          | owner, queue owner, admin | `200 { message, ticket }` |
+| `PATCH`  | `/api/tickets/:ticketId/complete` | owner, queue owner, admin | `200 { ticket }`          |
 
 `GET /api/tickets/me` is an alias of `GET /api/queues/my-tickets`.
 
@@ -221,29 +246,37 @@ and `503` when it is not, so a load balancer stops routing to a broken instance.
 
 ```js
 Queue = {
-  id, name, category, description,
-  status,                    // "active" | "paused" | "closed"
-  ticketPrefix,              // "C"
-  avgServiceMinutes,         // number
-  currentServing,            // "C23", or null if nobody is being served
-  waitingCount,              // number
-  estimatedWaitMinutes,      // waitingCount * avgServiceMinutes
+  id,
+  name,
+  category,
+  description,
+  status, // "active" | "paused" | "closed"
+  ticketPrefix, // "C"
+  avgServiceMinutes, // number
+  currentServing, // "C23", or null if nobody is being served
+  waitingCount, // number
+  estimatedWaitMinutes, // waitingCount * avgServiceMinutes
   ownerId,
-  isOwner,                   // true when the caller owns the queue
-  createdAt, updatedAt,
-}
+  isOwner, // true when the caller owns the queue
+  createdAt,
+  updatedAt,
+};
 
 Ticket = {
-  id, queueId, userId,
-  queueName, category,
-  code,                      // "C27"
-  ticketNumber,              // 27
-  status,                    // "waiting" | "serving" | "served" | "cancelled"
-  currentServing,            // "C23"
-  peopleAhead,               // 0 when serving, served or cancelled
-  estimatedWaitMinutes,      // peopleAhead * avgServiceMinutes
-  createdAt, updatedAt,
-}
+  id,
+  queueId,
+  userId,
+  queueName,
+  category,
+  code, // "C27"
+  ticketNumber, // 27
+  status, // "waiting" | "serving" | "served" | "cancelled"
+  currentServing, // "C23"
+  peopleAhead, // 0 when serving, served or cancelled
+  estimatedWaitMinutes, // peopleAhead * avgServiceMinutes
+  createdAt,
+  updatedAt,
+};
 ```
 
 ### How ticket numbers stay unique
@@ -264,17 +297,13 @@ receive distinct, gapless numbers.
 
 The frontend includes the virtual queue screens:
 
-- `/dashboard` lists your active tickets and the queues you can join
+- `/dashboard` lists your active ticket and the queues you can join. Merchants and admins also see every queue they own (including paused and closed ones) and a **Create queue** button
+- `/queues/new` lets merchants and admins create a queue (name, category, ticket prefix, average service time)
+- `/profile` edits your name, email, phone number and profile photo
 - `/tickets/:ticketId` shows your number, who is being served now, how many people are ahead, and the estimated wait. It shows a "🔔 Your turn is coming soon" alert when 2 or fewer people are ahead, and can also send a browser notification.
 - `/queues/:queueId/manage` is a staff console with a "Call next customer" button
 
-Pages refresh every 4 seconds. Set `VITE_USE_MOCK_API=false` in `frontend/.env`
-to use the real API instead of the in-browser mock
-(`src/services/mockQueueApi.js`), which stores queues in `localStorage` and
-moves each queue forward every 20 seconds.
-
-`frontend/src/pages/Dashboard.jsx` is still a self-contained demo page with
-hardcoded services; it does not call the API yet.
+The ticket and staff pages refresh every 5 seconds. Every signed-in page is behind `ProtectedRoute`.
 
 ## Current Project Status
 
@@ -287,13 +316,13 @@ Implemented:
 - Atomic, race-free ticket issuance
 - Queue advancement with transactional now-serving promotion
 - Ticket history, cancellation and completion
-- Protected dashboard route and logout
+- Protected dashboard, ticket, staff, queue-creation and profile pages, and logout
 - PostgreSQL schema with an idempotent, migration-safe upgrade path
 - Frontend API service layer and authentication context
 - User-friendly error handling with a single global error handler
 
 Still pending: automated testing, cloud deployment, monitoring and logging.
-`frontend/src/pages/Dashboard.jsx` is still a self-contained demo page.
+There is also no UI for changing user roles.
 
 ## Run with Docker Compose
 
@@ -306,7 +335,7 @@ docker compose up -d --build
 
 - Frontend (Vite dev server): http://localhost:5173
 - Backend API: http://localhost:5000
-- PostgreSQL: `localhost:5432`
+- PostgreSQL: `localhost:5433` (override with `DB_PORT`)
 
 `database/schema.sql` is mounted into the database container, so the schema is
 created automatically the first time the `db_data` volume is initialized. The
@@ -348,14 +377,21 @@ curl http://localhost:8080/api/health
 
 GitHub Actions workflows live in `.github/workflows/`:
 
-| Workflow | Trigger | Purpose |
-| --- | --- | --- |
-| `ci.yml` | push / PR to `main` | Installs dependencies, builds both apps, builds both Docker images, validates both Compose files |
-| `smoke.yml` | push / PR to `main` | Boots the production Compose stack and checks `/healthz` and `/api/health` |
-| `docker-publish.yml` | tag `v*.*.*` or manual | Publishes both images to GitHub Container Registry |
+| Workflow             | Trigger                | Purpose                                                                                          |
+| -------------------- | ---------------------- | ------------------------------------------------------------------------------------------------ |
+| `ci.yml`             | push / PR to `main`    | Installs dependencies, runs the backend tests against PostgreSQL 16, builds both apps and Docker images, validates both Compose files |
+| `smoke.yml`          | push / PR to `main`    | Boots the production Compose stack and checks `/healthz` and `/api/health`                       |
+| `docker-publish.yml` | tag `v*.*.*` or manual | Publishes both images to GitHub Container Registry                                               |
+| `deploy.yml`         | CI passes on `main`, or manual | Deploys the production stack to the team's lab PC through a self-hosted runner           |
 
 Images published by `docker-publish.yml` are tagged
 `ghcr.io/<owner>/queueless-backend` and `ghcr.io/<owner>/queueless-frontend`.
+
+### Lab server deployment
+
+The team's lab PC (Ubuntu with Docker, no sudo) runs a GitHub self-hosted
+runner labelled `queueless-lab`. Setup steps, required secrets and
+troubleshooting are in [docs/lab-server-setup.md](docs/lab-server-setup.md).
 
 ## Future DevOps Phases
 

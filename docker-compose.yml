@@ -62,14 +62,13 @@ services:
     environment:
       NODE_ENV: development
       VITE_API_URL: ${VITE_API_URL:-http://localhost:5000/api}
-      VITE_USE_MOCK_API: ${VITE_USE_MOCK_API:-false} # ✅ Changed to false for live backend integration
       VITE_PROXY_TARGET: http://backend:5000
     ports:
       - "${FRONTEND_PORT:-5173}:5173"
     volumes:
       - ./frontend/src:/app/src:ro
       - ./frontend/public:/app/public:ro
-      - /app/node_modules # ✅ Fixed double dash typo
+      - /app/node_modules
     depends_on:
       - backend
 
