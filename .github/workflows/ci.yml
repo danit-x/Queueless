@@ -16,11 +16,33 @@ permissions:
 
 jobs:
   backend:
-    name: Backend build
+    name: Backend test & build
     runs-on: ubuntu-latest
     defaults:
       run:
         working-directory: backend
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: queueless
+          POSTGRES_PASSWORD: queueless
+          POSTGRES_DB: queueless_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U queueless -d queueless_test"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgres://queueless:queueless@localhost:5432/queueless_test
+      # Throwaway value for the CI database only; never used outside this job.
+      JWT_SECRET: ci-only-test-secret-not-used-anywhere-else-0123456789
+      BCRYPT_ROUNDS: "4"
 
     steps:
       - uses: actions/checkout@v4
@@ -36,6 +58,12 @@ jobs:
 
       - name: Syntax check server entrypoint
         run: node --check src/server.js
+
+      - name: Apply database schema
+        run: psql "$DATABASE_URL" -v ON_ERROR_STOP=1 -q -f ../database/schema.sql
+
+      - name: Run tests
+        run: npm test
 
       - name: Build production image
         run: docker build -f Dockerfile -t queueless-backend:ci .
