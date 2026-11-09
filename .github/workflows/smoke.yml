@@ -14,6 +14,13 @@ jobs:
   smoke:
     name: Production stack smoke test
     runs-on: ubuntu-latest
+    # Every compose command (build, up, logs, down) interpolates the whole
+    # file, so the required variables must be set for the entire job.
+    env:
+      POSTGRES_PASSWORD: ci-postgres-password
+      JWT_SECRET: ci-jwt-secret-not-for-production
+      CLIENT_ORIGIN: http://localhost:8080
+      FRONTEND_PORT: "8080"
 
     steps:
       - uses: actions/checkout@v4
@@ -23,11 +30,6 @@ jobs:
 
       - name: Start stack
         run: docker compose -f docker-compose.prod.yml up -d
-        env:
-          POSTGRES_PASSWORD: ci-postgres-password
-          JWT_SECRET: ci-jwt-secret-not-for-production
-          CLIENT_ORIGIN: http://localhost:8080
-          FRONTEND_PORT: "8080"
 
       - name: Wait for health
         run: |

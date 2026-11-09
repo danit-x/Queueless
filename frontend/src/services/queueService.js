@@ -1,7 +1,8 @@
 import { apiClient } from "./api";
 
-export async function getQueues() {
-  const { data } = await apiClient.get("/queues");
+// params: { status: "active" | "paused" | "closed" | "all", mine: true }
+export async function getQueues(params) {
+  const { data } = await apiClient.get("/queues", { params });
   return data;
 }
 

@@ -171,6 +171,8 @@ export default function Dashboard() {
   const [search, setSearch] = useState("");
   const [selectedId, setSelectedId] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [ownQueues, setOwnQueues] = useState([]);
+  const canManage = canManageQueues(user);
 
   useEffect(() => {
     let mounted = true;
@@ -178,13 +180,17 @@ export default function Dashboard() {
     async function loadDashboard() {
       setLoading(true);
       try {
-        const [queueData, ticketData] = await Promise.all([
+        // Staff also load every queue they own, whatever its status, so a
+        // paused or closed queue never disappears from their dashboard.
+        const [queueData, ticketData, ownQueueData] = await Promise.all([
           getQueues(),
           getMyTickets({ status: "all" }),
+          canManage ? getQueues({ status: "all", mine: true }) : null,
         ]);
         if (!mounted) return;
         setQueues(queueData.queues || []);
         setTickets(ticketData.tickets || []);
+        setOwnQueues(ownQueueData?.queues || []);
         setError("");
       } catch (loadError) {
         if (!mounted) return;
@@ -198,7 +204,7 @@ export default function Dashboard() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [canManage]);
 
   const activeTickets = useMemo(
     () => tickets.filter((ticket) => ticket.status === "waiting" || ticket.status === "serving"),
@@ -213,7 +219,6 @@ export default function Dashboard() {
     [tickets]
   );
   const activeTicket = activeTickets[0] ?? null;
-  const canManage = canManageQueues(user);
   const name = firstName(user);
   const alerts = useMemo(() => {
     return activeTickets.flatMap((ticket) => {
@@ -380,6 +385,8 @@ export default function Dashboard() {
                 </article>
               </section>
 
+              {canManage && <StaffQueues queues={ownQueues} loading={loading} />}
+
               <ServiceSection
                 categories={visibleCategories}
                 queues={queues}
@@ -459,6 +466,11 @@ export default function Dashboard() {
               <p className="cd-profile-name">{user?.name || "Guest"}</p>
               <p className="cd-muted">{user?.email || "Sign in to save tickets to your account."}</p>
               {user?.role && <p className="cd-role">{user.role}</p>}
+              {isAuthenticated && (
+                <Link className="cd-btn" to="/profile">
+                  Edit profile
+                </Link>
+              )}
               {isAuthenticated ? (
                 <button
                   type="button"
@@ -478,6 +490,50 @@ export default function Dashboard() {
         </main>
       </div>
     </div>
+  );
+}
+
+const QUEUE_STATUS = {
+  active: { label: "Active", className: "cd-pill cd-pill-on" },
+  paused: { label: "Paused", className: "cd-pill cd-pill-wait" },
+  closed: { label: "Closed", className: "cd-pill" },
+};
+
+function StaffQueues({ queues, loading }) {
+  return (
+    <section className="cd-panel">
+      <div className="cd-staff-head">
+        <h2>Your Queues</h2>
+        <Link className="cd-btn" to="/queues/new">
+          + Create queue
+        </Link>
+      </div>
+      {loading ? (
+        <p className="cd-muted" role="status">Loading your queues...</p>
+      ) : queues.length === 0 ? (
+        <p className="cd-muted">You don't manage any queues yet. Create one to start serving customers.</p>
+      ) : (
+        <div className="cd-queue-list">
+          {queues.map((queue) => {
+            const status = QUEUE_STATUS[queue.status] ?? { label: queue.status, className: "cd-pill" };
+            return (
+              <article key={queue.id} className="cd-queue">
+                <div>
+                  <h3>{queue.name}</h3>
+                  <p>
+                    {queue.category} · {queue.waitingCount} waiting · now serving {queue.currentServing ?? "—"}
+                  </p>
+                </div>
+                <span className={status.className}>{status.label}</span>
+                <Link className="cd-btn" to={`/queues/${queue.id}/manage`}>
+                  Manage queue
+                </Link>
+              </article>
+            );
+          })}
+        </div>
+      )}
+    </section>
   );
 }
 
