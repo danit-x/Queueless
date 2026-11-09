@@ -1,4 +1,4 @@
-import { Navigate, Route, Routes } from "react-router-dom";
+import { Navigate, Route, Routes, useLocation } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute";
 import SiteNav from "./components/SiteNav";
 import Dashboard from "./pages/Dashboard";
@@ -9,9 +9,12 @@ import Register from "./pages/Register";
 import Ticket from "./pages/Ticket";
 
 export default function App() {
+  const location = useLocation();
+  const isDashboard = location.pathname.startsWith("/dashboard");
+
   return (
     <>
-      <SiteNav />
+      {!isDashboard && <SiteNav />}
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
