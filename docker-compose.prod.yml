@@ -63,7 +63,6 @@ services:
       target: runtime
       args:
         VITE_API_URL: /api
-        VITE_USE_MOCK_API: "false"
     image: queueless-frontend:latest
     container_name: queueless-prod-frontend
     restart: unless-stopped

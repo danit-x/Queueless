@@ -38,6 +38,13 @@ export default function SiteNav() {
                   <strong>{user?.name || "Your profile"}</strong>
                   {user?.email && <span>{user.email}</span>}
                 </div>
+                <Link
+                  to="/profile"
+                  className="site-nav-profile-link"
+                  onClick={(event) => event.currentTarget.closest("details")?.removeAttribute("open")}
+                >
+                  Edit profile
+                </Link>
                 <button type="button" onClick={handleLogout}>
                   Log out
                 </button>

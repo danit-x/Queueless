@@ -4,8 +4,6 @@ QueueLess is a university DevOps project for a virtual queue management system. 
 
 ## Technology Stack
 
-docker compose up --build
-
 - React, Vite, JavaScript, Tailwind CSS, React Router
 - Node.js, Express.js, REST API
 - PostgreSQL
@@ -61,7 +59,7 @@ QueueLess/
 
 ## Prerequisites
 
-- Node.js 18 or newer
+- Node.js 20 or newer
 - npm
 - PostgreSQL
 - Git
@@ -97,7 +95,7 @@ database upgrades it in place, so it doubles as the migration script.
 
 ### Becoming a merchant or admin
 
-Registration always creates a `customer`. Promote an account with SQL:
+Registration always creates a `customer`. There is no admin UI for roles yet, so promote an account with SQL:
 
 ```bash
 psql -d queueless -c "UPDATE users SET role='merchant' WHERE email='you@example.com';"
@@ -130,7 +128,6 @@ Create `frontend/.env` from `frontend/.env.example`:
 
 ```env
 VITE_API_URL=http://localhost:5000/api
-VITE_USE_MOCK_API=false
 ```
 
 The actual `.env` files are ignored by Git.
@@ -168,6 +165,10 @@ that message to the user.
 | `POST` | `/api/auth/register` | public        | `201 { message, token, user }` |
 | `POST` | `/api/auth/login`    | public        | `200 { token, user }`          |
 | `GET`  | `/api/auth/me`       | authenticated | `200 { user }`                 |
+| `PATCH` | `/api/auth/me`      | authenticated | `200 { user }` (name, email, phoneNumber) |
+| `GET`  | `/api/auth/me/photo` | authenticated | image bytes, `404` if none     |
+| `PUT`  | `/api/auth/me/photo` | authenticated | `200 { user }` (raw JPEG/PNG/WebP body, max 2 MB) |
+| `DELETE` | `/api/auth/me/photo` | authenticated | `200 { user }`             |
 
 `register` and `login` are rate limited per IP.
 
@@ -268,17 +269,13 @@ receive distinct, gapless numbers.
 
 The frontend includes the virtual queue screens:
 
-- `/dashboard` lists your active tickets and the queues you can join
+- `/dashboard` lists your active ticket and the queues you can join. Merchants and admins also see every queue they own (including paused and closed ones) and a **Create queue** button
+- `/queues/new` lets merchants and admins create a queue (name, category, ticket prefix, average service time)
+- `/profile` edits your name, email, phone number and profile photo
 - `/tickets/:ticketId` shows your number, who is being served now, how many people are ahead, and the estimated wait. It shows a "🔔 Your turn is coming soon" alert when 2 or fewer people are ahead, and can also send a browser notification.
 - `/queues/:queueId/manage` is a staff console with a "Call next customer" button
 
-Pages refresh every 4 seconds. Set `VITE_USE_MOCK_API=false` in `frontend/.env`
-to use the real API instead of the in-browser mock
-(`src/services/mockQueueApi.js`), which stores queues in `localStorage` and
-moves each queue forward every 20 seconds.
-
-`frontend/src/pages/Dashboard.jsx` is still a self-contained demo page with
-hardcoded services; it does not call the API yet.
+The ticket and staff pages refresh every 5 seconds. Every signed-in page is behind `ProtectedRoute`.
 
 ## Current Project Status
 
@@ -291,13 +288,13 @@ Implemented:
 - Atomic, race-free ticket issuance
 - Queue advancement with transactional now-serving promotion
 - Ticket history, cancellation and completion
-- Protected dashboard route and logout
+- Protected dashboard, ticket, staff, queue-creation and profile pages, and logout
 - PostgreSQL schema with an idempotent, migration-safe upgrade path
 - Frontend API service layer and authentication context
 - User-friendly error handling with a single global error handler
 
 Still pending: automated testing, cloud deployment, monitoring and logging.
-`frontend/src/pages/Dashboard.jsx` is still a self-contained demo page.
+There is also no UI for changing user roles.
 
 ## Run with Docker Compose
 
@@ -310,7 +307,7 @@ docker compose up -d --build
 
 - Frontend (Vite dev server): http://localhost:5173
 - Backend API: http://localhost:5000
-- PostgreSQL: `localhost:5432`
+- PostgreSQL: `localhost:5433` (override with `DB_PORT`)
 
 `database/schema.sql` is mounted into the database container, so the schema is
 created automatically the first time the `db_data` volume is initialized. The

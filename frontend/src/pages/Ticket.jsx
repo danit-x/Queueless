@@ -3,14 +3,15 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import AppLayout from "../layouts/AppLayout";
 import TurnAlert from "../components/TurnAlert";
 import { usePolling } from "../hooks/usePolling";
-import { getMyTickets, leaveTicket, POLL_INTERVAL_MS } from "../services/queueService";
+import { getTicket, leaveTicket, POLL_INTERVAL_MS } from "../services/queueService";
 
 const MAX_QUEUE_DOTS = 10;
 
+// Keys match the API's ticket statuses: waiting | serving | served | cancelled.
 const statusLabels = {
   waiting: { text: "Waiting", className: "bg-brand-50 text-brand-700" },
   serving: { text: "Your turn", className: "bg-emerald-50 text-emerald-700" },
-  completed: { text: "Completed", className: "bg-slate-100 text-slate-700" },
+  served: { text: "Completed", className: "bg-slate-100 text-slate-700" },
   cancelled: { text: "Left queue", className: "bg-slate-100 text-slate-700" },
 };
 
@@ -39,19 +40,16 @@ export default function Ticket() {
 
   async function refresh() {
     try {
-      const data = await getMyTickets({ status: "all" });
-      const currentTicket = data.tickets.find((item) => item.id === ticketId);
-      if (!currentTicket) {
-        setTicket(null);
-        setError("Ticket not found in your ticket history.");
-        return;
-      }
-      setTicket({
-        ...currentTicket,
-        status: currentTicket.status === "served" ? "completed" : currentTicket.status,
-      });
+      const data = await getTicket(ticketId);
+      setTicket(data.ticket);
       setError("");
     } catch (error) {
+      // The API answers 404 for both a missing ticket and someone else's ticket.
+      if (error.response?.status === 404 || error.response?.status === 400) {
+        setTicket(null);
+        setError("Ticket not found.");
+        return;
+      }
       setError(error.message);
     } finally {
       setLoading(false);
@@ -138,7 +136,7 @@ export default function Ticket() {
             </div>
           )}
 
-          {ticket.status === "completed" && (
+          {ticket.status === "served" && (
             <p className="mt-6 text-sm text-slate-600">This ticket has been served. Thanks for using QueueLess!</p>
           )}
         </section>

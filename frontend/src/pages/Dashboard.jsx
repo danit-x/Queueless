@@ -11,13 +11,43 @@ function getGreeting() {
   return "Good evening";
 }
 
+// Staff also get every queue they own, whatever its status, so a paused or
+// closed queue never disappears from their dashboard.
+async function fetchDashboard(includeOwnQueues) {
+  const [queueData, ticketData, ownQueueData] = await Promise.all([
+    getQueues(),
+    getMyTickets({ status: "active" }),
+    includeOwnQueues ? getQueues({ status: "all", mine: true }) : null,
+  ]);
+
+  return {
+    queues: queueData.queues,
+    tickets: ticketData.tickets,
+    ownQueues: ownQueueData?.queues ?? [],
+  };
+}
+
+const statusBadges = {
+  active: "Active",
+  paused: "Paused",
+  closed: "Closed",
+};
+
 export default function Dashboard() {
   const { user } = useAuth();
+  const canManage = canManageQueues(user);
   const [queues, setQueues] = useState([]);
+  const [ownQueues, setOwnQueues] = useState([]);
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [joiningQueueId, setJoiningQueueId] = useState(null);
+
+  function applyDashboard(data) {
+    setQueues(data.queues);
+    setTickets(data.tickets);
+    setOwnQueues(data.ownQueues);
+  }
 
   useEffect(() => {
     let mounted = true;
@@ -25,13 +55,9 @@ export default function Dashboard() {
     async function loadDashboard() {
       setLoading(true);
       try {
-        const [queueData, ticketData] = await Promise.all([
-          getQueues(),
-          getMyTickets({ status: "active" }),
-        ]);
+        const data = await fetchDashboard(canManage);
         if (!mounted) return;
-        setQueues(queueData.queues);
-        setTickets(ticketData.tickets);
+        applyDashboard(data);
         setError("");
       } catch (loadError) {
         if (mounted) setError(loadError.message || "Unable to load queues.");
@@ -44,7 +70,7 @@ export default function Dashboard() {
     return () => {
       mounted = false;
     };
-  }, []);
+  }, [canManage]);
 
   function scrollToServices() {
     document.getElementById("services")?.scrollIntoView({ behavior: "smooth" });
@@ -55,12 +81,7 @@ export default function Dashboard() {
     setError("");
     try {
       await joinQueue(queueId);
-      const [queueData, ticketData] = await Promise.all([
-        getQueues(),
-        getMyTickets({ status: "active" }),
-      ]);
-      setQueues(queueData.queues);
-      setTickets(ticketData.tickets);
+      applyDashboard(await fetchDashboard(canManage));
     } catch (joinError) {
       setError(joinError.message || "Unable to join this queue.");
     } finally {
@@ -69,7 +90,6 @@ export default function Dashboard() {
   }
 
   const activeTicket = tickets[0] ?? null;
-  const canManage = canManageQueues(user);
 
   return (
     <div className="cd-page">
@@ -124,6 +144,34 @@ export default function Dashboard() {
             </div>
           )}
         </section>
+
+        {canManage && (
+          <section className="cd-staff">
+            <div className="cd-staff-head">
+              <h2 className="cd-title">Your Queues</h2>
+              <Link className="cd-btn" to="/queues/new">+ Create queue</Link>
+            </div>
+            {loading ? (
+              <p role="status">Loading your queues...</p>
+            ) : ownQueues.length === 0 ? (
+              <p className="cd-note">You don't manage any queues yet. Create one to start serving customers.</p>
+            ) : (
+              <div className="cd-grid">
+                {ownQueues.map((queue) => (
+                  <div key={queue.id} className="cd-card cd-service">
+                    <span className={`cd-status cd-status-${queue.status}`}>
+                      {statusBadges[queue.status] ?? queue.status}
+                    </span>
+                    <h3>{queue.name}</h3>
+                    <p>{queue.category} · {queue.waitingCount} waiting</p>
+                    <p>Now serving {queue.currentServing ?? "—"}</p>
+                    <Link className="cd-btn" to={`/queues/${queue.id}/manage`}>Manage queue</Link>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Services */}
         <section id="services">

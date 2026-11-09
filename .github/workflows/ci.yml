@@ -100,7 +100,6 @@ jobs:
           tags: queueless-frontend:ci
           build-args: |
             VITE_API_URL=/api
-            VITE_USE_MOCK_API=false
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

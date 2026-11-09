@@ -73,6 +73,12 @@ export function AuthProvider({ children }) {
     setUser(null);
   }
 
+  // Called after the profile is edited so the nav and every page see the change.
+  function updateUser(nextUser) {
+    localStorage.setItem("queueless_user", JSON.stringify(nextUser));
+    setUser(nextUser);
+  }
+
   const value = useMemo(
     () => ({
       user,
@@ -81,6 +87,7 @@ export function AuthProvider({ children }) {
       login,
       register,
       logout,
+      updateUser,
     }),
     [user, loading]
   );
