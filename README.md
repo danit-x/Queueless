@@ -93,6 +93,12 @@ psql -d queueless -f schema.sql
 `database/schema.sql` is fully idempotent. Running it against an existing
 database upgrades it in place, so it doubles as the migration script.
 
+When the backend runs with `NODE_ENV=development`, it also applies
+`database/development-seed.sql` by default. This seeds example queues for the
+Barber, Restaurant, Clinic, Bank, and Repair Shop categories, including active,
+paused, and closed statuses. The seed can be disabled with
+`SEED_DEVELOPMENT_DATA=false`; it is never enabled in production.
+
 ### Becoming a merchant or admin
 
 Registration always creates a `customer`. Promote an account with SQL:
@@ -184,8 +190,8 @@ that message to the user.
 | `GET` | `/api/queues/:queueId/tickets` | owner, admin | `200 { tickets, count }` |
 | `GET` | `/api/queues/my-tickets` | authenticated | `200 { tickets, count }` |
 
-`GET /api/queues` accepts `?status=active|paused|closed|all` (default `active`)
-and `?mine=true`.
+`GET /api/queues` accepts `?status=active|paused|closed|all` (default `active`),
+`?category=` for an exact case-insensitive category match, and `?mine=true`.
 
 `GET /api/queues/my-tickets` accepts `?status=active|waiting|serving|served|cancelled|all`
 (default `all`, i.e. full history) and `?limit=` between 1 and 200.
@@ -355,4 +361,3 @@ Images published by `docker-publish.yml` are tagged
 
 Later phases will add automated testing, cloud deployment, monitoring, and
 logging.
-

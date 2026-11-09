@@ -163,6 +163,8 @@ export default function Dashboard() {
   const { user, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
   const [queues, setQueues] = useState([]);
+  const [selectedQueues, setSelectedQueues] = useState([]);
+  const [selectedQueuesLoading, setSelectedQueuesLoading] = useState(false);
   const [tickets, setTickets] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -179,7 +181,7 @@ export default function Dashboard() {
       setLoading(true);
       try {
         const [queueData, ticketData] = await Promise.all([
-          getQueues(),
+          getQueues({ status: "all" }),
           getMyTickets({ status: "all" }),
         ]);
         if (!mounted) return;
@@ -199,6 +201,35 @@ export default function Dashboard() {
       mounted = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (!selectedCategory) {
+      setSelectedQueues([]);
+      setSelectedQueuesLoading(false);
+      return undefined;
+    }
+
+    let mounted = true;
+    setSelectedQueuesLoading(true);
+    setError("");
+
+    getQueues({ status: "all", category: selectedCategory.name })
+      .then((queueData) => {
+        if (mounted) setSelectedQueues(queueData.queues || []);
+      })
+      .catch((loadError) => {
+        if (!mounted) return;
+        setSelectedQueues([]);
+        setError(loadError.message || "Unable to load queues for this service.");
+      })
+      .finally(() => {
+        if (mounted) setSelectedQueuesLoading(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [selectedId]);
 
   const activeTickets = useMemo(
     () => tickets.filter((ticket) => ticket.status === "waiting" || ticket.status === "serving"),
@@ -236,7 +267,6 @@ export default function Dashboard() {
   }, [search]);
 
   const selectedCategory = SERVICE_CATEGORIES.find((category) => category.id === selectedId) ?? null;
-  const selectedQueues = selectedCategory ? queuesForCategory(selectedCategory, queues) : [];
 
   function openSection(next) {
     setSection(next);
@@ -256,7 +286,7 @@ export default function Dashboard() {
     try {
       await joinQueue(queueId);
       const [queueData, ticketData] = await Promise.all([
-        getQueues(),
+        getQueues({ status: "all" }),
         getMyTickets({ status: "all" }),
       ]);
       setQueues(queueData.queues || []);
@@ -399,21 +429,24 @@ export default function Dashboard() {
                 <h1>Available Services</h1>
                 <p>Choose a service to join its queue.</p>
               </section>
-              <ServiceSection
-                categories={visibleCategories}
-                queues={queues}
-                loading={loading}
-                selectedId={selectedId}
-                onOpen={openService}
-              />
-              {selectedCategory && (
+              {selectedCategory ? (
                 <QueueList
                   category={selectedCategory}
                   queues={selectedQueues}
+                  loading={selectedQueuesLoading}
                   activeTicket={activeTicket}
                   joiningQueueId={joiningQueueId}
                   canManage={canManage}
                   onJoin={handleJoinQueue}
+                  onBack={() => setSelectedId(null)}
+                />
+              ) : (
+                <ServiceSection
+                  categories={visibleCategories}
+                  queues={queues}
+                  loading={loading}
+                  selectedId={selectedId}
+                  onOpen={openService}
                 />
               )}
             </>
@@ -496,7 +529,8 @@ function ServiceSection({ categories, queues, loading, selectedId, onOpen, showH
         <div className="cd-grid">
           {categories.map((category) => {
             const matches = queuesForCategory(category, queues);
-            const available = matches.length > 0;
+            const activeCount = matches.filter((queue) => queue.status === "active").length;
+            const available = activeCount > 0;
             return (
               <article key={category.id} className={`cd-service ${selectedId === category.id ? "is-selected" : ""}`}>
                 <div className="cd-service-top">
@@ -508,7 +542,11 @@ function ServiceSection({ categories, queues, loading, selectedId, onOpen, showH
                 <h3>{category.name}</h3>
                 <p>{category.description}</p>
                 <p className="cd-service-meta">
-                  {loading ? "Looking up queues…" : available ? `${matches.length} open ${matches.length === 1 ? "queue" : "queues"}` : "No open queues"}
+                  {loading
+                    ? "Looking up queues…"
+                    : available
+                      ? `${activeCount} available ${activeCount === 1 ? "queue" : "queues"}`
+                      : "No active queues"}
                 </p>
                 <button type="button" className="cd-btn" onClick={() => onOpen(category.id)}>
                   View service
@@ -522,46 +560,81 @@ function ServiceSection({ categories, queues, loading, selectedId, onOpen, showH
   );
 }
 
-function QueueList({ category, queues, activeTicket, joiningQueueId, canManage, onJoin }) {
+function QueueList({
+  category,
+  queues,
+  loading,
+  activeTicket,
+  joiningQueueId,
+  canManage,
+  onJoin,
+  onBack,
+}) {
   return (
-    <section className="cd-panel">
-      <h2>
-        <span aria-hidden="true">{category.icon}</span> {category.name}
-      </h2>
-      <p className="cd-muted">{category.description}</p>
-      {queues.length === 0 ? (
-        <p className="cd-muted">This service has no open queues right now. Check again later.</p>
+    <section className="cd-service-details">
+      <button type="button" className="cd-text-link cd-back-link" onClick={onBack}>
+        ← All services
+      </button>
+      <header className="cd-service-heading">
+        <span className="cd-service-icon" aria-hidden="true">{category.icon}</span>
+        <div>
+          <p className="cd-kicker">Available services</p>
+          <h2>{category.name} Services</h2>
+          <p>Choose an available queue to continue.</p>
+        </div>
+      </header>
+      {loading ? (
+        <p className="cd-muted" role="status">Loading available queues...</p>
+      ) : queues.length === 0 ? (
+        <p className="cd-panel cd-muted">There are no queues for this service right now. Check again later.</p>
       ) : (
         <div className="cd-queue-list">
           {queues.map((queue) => {
             const alreadyJoined = activeTicket?.queueId === queue.id;
+            const isActive = queue.status === "active";
             return (
-              <article key={queue.id} className="cd-queue">
-                <div>
-                  <h3>{queue.name}</h3>
-                  <p>
-                    {queue.waitingCount} waiting · now serving {queue.currentServing ?? "—"}
-                  </p>
+              <article key={queue.id} className="cd-queue cd-queue-card">
+                <div className="cd-queue-heading">
+                  <div>
+                    <h3>{queue.name}</h3>
+                    <p>{queue.description || category.description}</p>
+                  </div>
+                  <span className={`cd-pill cd-pill-${queue.status}`}>
+                    {queue.status === "active" ? "Active" : queue.status === "paused" ? "Paused" : "Closed"}
+                  </span>
                 </div>
-                {alreadyJoined ? (
-                  <Link className="cd-btn" to={`/tickets/${activeTicket.id}`}>
-                    View ticket {activeTicket.code}
-                  </Link>
-                ) : (
-                  <button
-                    type="button"
-                    className="cd-btn"
-                    onClick={() => onJoin(queue.id)}
-                    disabled={Boolean(activeTicket) || joiningQueueId !== null}
-                  >
-                    {joiningQueueId === queue.id ? "Joining..." : "Join Queue"}
-                  </button>
-                )}
-                {canManage && (
-                  <Link className="cd-text-link" to={`/queues/${queue.id}/manage`}>
-                    Manage queue
-                  </Link>
-                )}
+                <div className="cd-queue-stats">
+                  <div><span>People waiting</span><strong>{queue.waitingCount}</strong></div>
+                  <div><span>Average service time</span><strong>{queue.avgServiceMinutes} minutes</strong></div>
+                  <div><span>Estimated wait</span><strong>{queue.estimatedWaitMinutes} minutes</strong></div>
+                </div>
+                <div className="cd-queue-actions">
+                  {alreadyJoined ? (
+                    <Link className="cd-btn" to={`/tickets/${activeTicket.id}`}>
+                      View ticket {activeTicket.code}
+                    </Link>
+                  ) : (
+                    <button
+                      type="button"
+                      className="cd-btn"
+                      onClick={() => onJoin(queue.id)}
+                      disabled={!isActive || Boolean(activeTicket) || joiningQueueId !== null}
+                    >
+                      {joiningQueueId === queue.id
+                        ? "Joining..."
+                        : isActive
+                          ? "Join Queue"
+                          : queue.status === "paused"
+                            ? "Temporarily paused"
+                            : "Queue closed"}
+                    </button>
+                  )}
+                  {canManage && (
+                    <Link className="cd-text-link" to={`/queues/${queue.id}/manage`}>
+                      Manage queue
+                    </Link>
+                  )}
+                </div>
               </article>
             );
           })}

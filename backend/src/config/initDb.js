@@ -114,6 +114,36 @@ export async function applySchema() {
 }
 
 /**
+ * Applies deterministic sample queues only when explicitly enabled in development.
+ * @returns {Promise<boolean>}
+ */
+export async function applyDevelopmentSeed() {
+  const candidates = [
+    path.resolve(moduleDir, "../../../database/development-seed.sql"),
+    path.resolve(process.cwd(), "database/development-seed.sql"),
+    path.resolve(process.cwd(), "../database/development-seed.sql"),
+  ];
+  const seedPath = candidates.find((candidate) => fs.existsSync(candidate));
+
+  if (!seedPath) {
+    console.error("[db] Development seed enabled, but database/development-seed.sql was not found.");
+    return false;
+  }
+
+  try {
+    const sql = fs.readFileSync(seedPath, "utf8");
+    await withTransaction((client) => client.query(sql));
+    console.log(`[db] Development seed applied from ${seedPath}`);
+    return true;
+  } catch (error) {
+    console.error(
+      `[db] Failed to apply development seed from ${seedPath}: ${error.code ?? ""} ${error.message}`.trim()
+    );
+    return false;
+  }
+}
+
+/**
  * Startup hook.
  *
  * AUTO_MIGRATE=true  -> apply schema.sql, then verify it landed.
@@ -132,6 +162,10 @@ export async function initializeDatabase() {
       `[db] Schema is out of date. Missing: ${missing.join(", ")}. ` +
         "Run: psql \"$DATABASE_URL\" -f database/schema.sql"
     );
+    return false;
+  }
+
+  if (env.seedDevelopmentData && !(await applyDevelopmentSeed())) {
     return false;
   }
 

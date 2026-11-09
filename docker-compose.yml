@@ -40,12 +40,14 @@ services:
       CLIENT_ORIGIN: ${CLIENT_ORIGIN:-http://localhost:5173}
       SCHEMA_PATH: /app/database/schema.sql
       AUTO_MIGRATE: "true"
+      SEED_DEVELOPMENT_DATA: "true"
       TRUST_PROXY: "false"
     ports:
       - "${BACKEND_PORT:-5000}:5000"
     volumes:
       - ./backend/src:/app/src:ro
       - ./database/schema.sql:/app/database/schema.sql:ro
+      - ./database/development-seed.sql:/app/database/development-seed.sql:ro
       - /app/node_modules
     depends_on:
       db:

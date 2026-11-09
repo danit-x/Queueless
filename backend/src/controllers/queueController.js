@@ -63,7 +63,7 @@ async function loadManagedQueue(req, queueId) {
  *   mine    'true' to return only queues the caller owns
  */
 export const getQueues = asyncHandler(async (req, res) => {
-  const { status = "active", mine } = req.query ?? {};
+  const { status = "active", mine, category } = req.query ?? {};
 
   if (status !== "all" && !QUEUE_STATUSES.includes(status)) {
     throw ApiError.badRequest(
@@ -71,11 +71,23 @@ export const getQueues = asyncHandler(async (req, res) => {
     );
   }
 
+  if (
+    category !== undefined &&
+    (typeof category !== "string" || !category.trim() || category.trim().length > 60)
+  ) {
+    throw ApiError.badRequest("category must be between 1 and 60 characters.");
+  }
+
   // Ownership is never enumerable across tenants: mine=true scopes to the caller.
   const mineOnly = mine === "true" || mine === "1";
   const ownerId = mineOnly ? req.user.id : undefined;
 
-  const queues = await listQueues({ status, ownerId, viewerId: req.user.id });
+  const queues = await listQueues({
+    status,
+    category: category?.trim(),
+    ownerId,
+    viewerId: req.user.id,
+  });
 
   return res.json({ queues, count: queues.length });
 });

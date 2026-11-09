@@ -69,16 +69,21 @@ export function mapQueue(row, viewerId = null) {
 /**
  * Lists queues with live waiting counts.
  *
- * @param {{ status?: string, ownerId?: string, viewerId?: string }} options
+ * @param {{ status?: string, category?: string, ownerId?: string, viewerId?: string }} options
  *   `status` defaults to 'active'. Pass 'all' to include paused and closed.
  */
-export async function listQueues({ status = "active", ownerId, viewerId } = {}) {
+export async function listQueues({ status = "active", category, ownerId, viewerId } = {}) {
   const conditions = [];
   const params = [];
 
   if (status && status !== "all") {
     params.push(status);
     conditions.push(`q.status = $${params.length}`);
+  }
+
+  if (category) {
+    params.push(category);
+    conditions.push(`LOWER(q.category) = LOWER($${params.length})`);
   }
 
   if (ownerId) {

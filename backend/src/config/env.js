@@ -75,11 +75,17 @@ function readDatabaseSsl() {
 }
 
 const nodeEnv = readString("NODE_ENV", "development");
+const seedDevelopmentData = readBool("SEED_DEVELOPMENT_DATA", nodeEnv === "development");
+
+if (seedDevelopmentData && nodeEnv !== "development") {
+  throw new Error("SEED_DEVELOPMENT_DATA can only be enabled when NODE_ENV=development.");
+}
 
 export const env = Object.freeze({
   nodeEnv,
   isProduction: nodeEnv === "production",
   isTest: nodeEnv === "test",
+  seedDevelopmentData,
   port: readInt("PORT", 5000),
   databaseUrl: readString("DATABASE_URL"),
   databaseSsl: readDatabaseSsl(),
