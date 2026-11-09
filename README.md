@@ -357,9 +357,16 @@ GitHub Actions workflows live in `.github/workflows/`:
 | `ci.yml`             | push / PR to `main`    | Installs dependencies, builds both apps, builds both Docker images, validates both Compose files |
 | `smoke.yml`          | push / PR to `main`    | Boots the production Compose stack and checks `/healthz` and `/api/health`                       |
 | `docker-publish.yml` | tag `v*.*.*` or manual | Publishes both images to GitHub Container Registry                                               |
+| `deploy.yml`         | CI passes on `main`, or manual | Deploys the production stack to the team's lab PC through a self-hosted runner           |
 
 Images published by `docker-publish.yml` are tagged
 `ghcr.io/<owner>/queueless-backend` and `ghcr.io/<owner>/queueless-frontend`.
+
+### Lab server deployment
+
+The team's lab PC (Ubuntu with Docker, no sudo) runs a GitHub self-hosted
+runner labelled `queueless-lab`. Setup steps, required secrets and
+troubleshooting are in [docs/lab-server-setup.md](docs/lab-server-setup.md).
 
 ## Future DevOps Phases
 
