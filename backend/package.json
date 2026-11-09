@@ -10,6 +10,7 @@
   "scripts": {
     "dev": "nodemon src/server.js",
     "start": "node src/server.js",
+    "test": "node --test",
     "check": "node --check src/server.js && node --check src/config/db.js && node --check src/config/env.js && node --check src/config/initDb.js && node --check src/controllers/authController.js && node --check src/controllers/queueController.js && node --check src/middleware/authMiddleware.js && node --check src/middleware/errorHandler.js && node --check src/models/userModel.js && node --check src/models/queueModel.js && node --check src/models/ticketModel.js && node --check src/models/ticketPresenter.js && node --check src/routes/authRoutes.js && node --check src/routes/queueRoutes.js && node --check src/routes/ticketRoutes.js && node --check src/utils/ApiError.js && node --check src/utils/asyncHandler.js && node --check src/utils/validation.js"
   },
   "dependencies": {
@@ -23,6 +24,7 @@
     "pg": "^8.12.0"
   },
   "devDependencies": {
-    "nodemon": "^3.1.4"
+    "nodemon": "^3.1.4",
+    "supertest": "^7.3.2"
   }
 }

@@ -153,6 +153,28 @@ npm run dev
 
 The app runs at `http://localhost:5173`.
 
+## Running tests
+
+The backend has an integration test suite in `backend/tests/` (Node's built-in
+`node:test` runner plus `supertest`). It drives `createApp()` directly, so no
+port is bound, but it needs a real PostgreSQL. Point it at a **dedicated** test
+database: tests create users and queues with unique emails and leave them behind.
+
+```bash
+docker run -d --name queueless-test-db -p 55432:5432 -e POSTGRES_USER=queueless -e POSTGRES_PASSWORD=queueless -e POSTGRES_DB=queueless_test postgres:16-alpine
+```
+
+```bash
+cd backend
+DATABASE_URL=postgres://queueless:queueless@localhost:55432/queueless_test JWT_SECRET=any-local-test-secret-of-32-plus-chars npm test
+```
+
+The suite applies `database/schema.sql` itself if the tables are missing, and
+defaults `NODE_ENV=test` and `BCRYPT_ROUNDS=4` to keep it fast. On PowerShell,
+set the variables with `$env:DATABASE_URL='...'` first. CI runs the same
+suite against a `postgres:16-alpine` service container before building the
+Docker image.
+
 ## API Endpoints
 
 Every endpoint except the two auth entry points and the health checks requires
@@ -354,7 +376,7 @@ GitHub Actions workflows live in `.github/workflows/`:
 
 | Workflow             | Trigger                | Purpose                                                                                          |
 | -------------------- | ---------------------- | ------------------------------------------------------------------------------------------------ |
-| `ci.yml`             | push / PR to `main`    | Installs dependencies, builds both apps, builds both Docker images, validates both Compose files |
+| `ci.yml`             | push / PR to `main`    | Installs dependencies, runs the backend tests against PostgreSQL 16, builds both apps and Docker images, validates both Compose files |
 | `smoke.yml`          | push / PR to `main`    | Boots the production Compose stack and checks `/healthz` and `/api/health`                       |
 | `docker-publish.yml` | tag `v*.*.*` or manual | Publishes both images to GitHub Container Registry                                               |
 

@@ -151,7 +151,7 @@ export const patchMe = asyncHandler(async (req, res) => {
   try {
     user = await updateUserProfile(req.user.id, {
       name: name.trim(),
-      email: email.trim(),
+      email: normalizeEmail(email),
       phoneNumber: phoneNumber?.trim() ?? "",
     });
   } catch (error) {
@@ -180,7 +180,7 @@ export const putProfilePhoto = asyncHandler(async (req, res) => {
       req.body.toString("ascii", 8, 12) === "WEBP",
   };
 
-  if (!imageSignatures[mimeType] || !imageSignatures[mimeType]) {
+  if (!imageSignatures[mimeType]) {
     throw ApiError.badRequest("Profile photo must be a valid JPEG, PNG, or WebP image.");
   }
 

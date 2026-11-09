@@ -4,6 +4,10 @@ import { findUserById } from "../models/userModel.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
 
+// Set when signing and enforced when verifying, so a token minted for another
+// service with the same secret is rejected.
+const JWT_CLAIMS = Object.freeze({ issuer: "queueless-api", audience: "queueless-app" });
+
 /** Extracts the raw token from an `Authorization: Bearer <token>` header. */
 function readBearerToken(req) {
   const header = req.get("authorization");
@@ -38,7 +42,7 @@ export const authenticateToken = asyncHandler(async (req, _res, next) => {
 
   let payload;
   try {
-    payload = jwt.verify(token, env.jwtSecret);
+    payload = jwt.verify(token, env.jwtSecret, JWT_CLAIMS);
   } catch (error) {
     const message =
       error.name === "TokenExpiredError" ? "Your session has expired." : "Invalid token.";
@@ -88,6 +92,6 @@ export function signAccessToken(user) {
   return jwt.sign(
     { sub: user.id, email: user.email, role: user.role },
     env.jwtSecret,
-    { expiresIn: env.jwtExpiresIn, issuer: "queueless-api", audience: "queueless-app" }
+    { expiresIn: env.jwtExpiresIn, ...JWT_CLAIMS }
   );
 }
