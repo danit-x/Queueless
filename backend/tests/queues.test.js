@@ -206,10 +206,10 @@ describe("POST /api/queues/:queueId/next", () => {
     assert.equal(completedFirst.body.ticket.status, "served");
     assert.equal(completedFirst.body.queue.currentServing, t2.code);
     assert.equal(completedFirst.body.queue.waitingCount, 0);
-    const completeBeforeArrival = await api()
+    const completeSecondBeforeArrival = await api()
       .patch(`/api/tickets/${t2.id}/complete`)
       .set(bearer(merchant.token));
-    assert.equal(completeBeforeArrival.status, 409);
+    assert.equal(completeSecondBeforeArrival.status, 409);
     await arriveTicket(second.token, t2.id).expect(200);
 
     const completedSecond = await api()
