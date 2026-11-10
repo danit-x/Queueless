@@ -155,15 +155,18 @@ describe("POST /api/queues/:queueId/next", () => {
     assert.equal(completed.status, 200);
     assert.equal(completed.body.ticket.status, "served");
     assert.equal(completed.body.queue.currentServing, t2.code);
+    // The next customer is called automatically and their grace period starts.
+    const calledSecond = await api().get(`/api/tickets/${t2.id}`).set(bearer(second.token));
+    assert.equal(calledSecond.body.ticket.status, "serving");
+    assert.ok(calledSecond.body.ticket.calledAt);
+
     await arriveTicket(second.token, t2.id).expect(200);
     const completedSecond = await api()
       .patch(`/api/tickets/${t2.id}/complete`)
       .set(bearer(merchant.token));
     assert.equal(completedSecond.status, 200);
+    assert.equal(completedSecond.body.ticket.status, "served");
     assert.equal(completedSecond.body.queue.currentServing, null);
-    const calledSecond = await api().get(`/api/tickets/${t2.id}`).set(bearer(second.token));
-    assert.equal(calledSecond.body.ticket.status, "serving");
-    assert.ok(calledSecond.body.ticket.calledAt);
   });
 
   test("calls customers before arrival and requires arrival before completion", async () => {
