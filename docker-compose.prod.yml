@@ -72,6 +72,9 @@ services:
     depends_on:
       backend:
         condition: service_healthy
+        # nginx resolves "backend" only at start-up, so restart it whenever
+        # Compose restarts or recreates the backend.
+        restart: true
 
 volumes:
   db_data_prod:
