@@ -88,3 +88,8 @@ export async function createQueue(token, overrides = {}) {
 export async function joinQueue(token, queueId) {
   return api().post(`/api/queues/${queueId}/join`).set(bearer(token));
 }
+
+// Returns the supertest request, so callers can `await` it or chain `.expect()`.
+export function arriveTicket(token, ticketId) {
+  return api().post(`/api/tickets/${ticketId}/arrive`).set(bearer(token));
+}
