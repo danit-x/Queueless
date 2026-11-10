@@ -17,6 +17,7 @@ import {
   findTicketRecord,
   getTicketView,
   listUserTickets,
+  markTicketArrived,
 } from "../models/ticketModel.js";
 import { ApiError } from "../utils/ApiError.js";
 import { asyncHandler } from "../utils/asyncHandler.js";
@@ -297,6 +298,13 @@ export const leaveQueue = asyncHandler(async (req, res) => {
   if (record.status === "served") {
     throw ApiError.conflict("This ticket has already been served.");
   }
+  if (record.status !== "waiting" && record.status !== "cancelled") {
+    throw ApiError.conflict(
+      record.status === "no_show"
+        ? "This ticket was marked as a no-show."
+        : "Only a waiting ticket can be cancelled."
+    );
+  }
 
   const { alreadyCancelled } = await cancelTicket(ticketId);
 
@@ -306,7 +314,20 @@ export const leaveQueue = asyncHandler(async (req, res) => {
   });
 });
 
-/** PATCH /api/tickets/:ticketId/complete — owner or admin marks a ticket served. */
+/** POST /api/tickets/:ticketId/arrive — customer confirms within the grace period. */
+export const markTicketArrivedHandler = asyncHandler(async (req, res) => {
+  const ticketId = requireUuid(req.params.ticketId, "ticket id");
+  const record = await findTicketRecord(ticketId);
+
+  if (!record || record.user_id !== req.user.id) {
+    throw ApiError.notFound("Ticket not found.");
+  }
+
+  const ticket = await markTicketArrived(ticketId);
+  return res.json({ ticket });
+});
+
+/** PATCH /api/tickets/:ticketId/complete — queue owner or admin completes service. */
 export const completeTicketHandler = asyncHandler(async (req, res) => {
   const ticketId = requireUuid(req.params.ticketId, "ticket id");
 
@@ -317,7 +338,6 @@ export const completeTicketHandler = asyncHandler(async (req, res) => {
   }
 
   const permitted =
-    record.user_id === req.user.id ||
     req.user.role === "admin" ||
     (isStaff(req.user) && record.queue_owner_id === req.user.id);
 
@@ -328,8 +348,11 @@ export const completeTicketHandler = asyncHandler(async (req, res) => {
   const updated = await completeTicket(ticketId);
 
   if (!updated) {
-    throw ApiError.conflict("This ticket is not waiting or being served.");
+    throw ApiError.conflict("This ticket is not currently being served.");
   }
 
-  return res.json({ ticket: await getTicketView(ticketId) });
+  return res.json({
+    ticket: await getTicketView(ticketId),
+    queue: mapQueue(await findQueueById(record.queue_id), req.user.id),
+  });
 });

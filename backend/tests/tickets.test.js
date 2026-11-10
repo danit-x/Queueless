@@ -3,13 +3,16 @@ import { after, before, describe, test } from "node:test";
 
 import {
   api,
+  arriveTicket,
   bearer,
   closePool,
   createQueue,
   joinQueue,
+  pool,
   prepareDatabase,
   registerUser,
 } from "./helpers.js";
+import { expireNoShowTickets } from "../src/models/ticketModel.js";
 
 before(prepareDatabase);
 after(closePool);
@@ -22,6 +25,9 @@ const TICKET_KEYS = [
   "category",
   "code",
   "status",
+  "calledAt",
+  "arrivedAt",
+  "completedAt",
   "ticketNumber",
   "currentServing",
   "peopleAhead",
@@ -62,13 +68,16 @@ describe("GET /api/tickets/:ticketId", () => {
     assert.equal(ticket.code, "P2");
     assert.equal(ticket.ticketNumber, 2);
     assert.equal(ticket.status, "waiting");
+    assert.equal(ticket.calledAt, null);
+    assert.equal(ticket.arrivedAt, null);
+    assert.equal(ticket.completedAt, null);
     assert.equal(ticket.peopleAhead, 1);
     assert.equal(ticket.estimatedWaitMinutes, 7);
     assert.equal(ticket.currentServing, null);
   });
 
   test("reflects queue progress after the merchant calls next", async () => {
-    const { merchant, queue, second, t1, t2 } = await queueWithTwoCustomers();
+    const { merchant, first, queue, second, t1, t2 } = await queueWithTwoCustomers();
 
     await api().post(`/api/queues/${queue.id}/next`).set(bearer(merchant.token)).expect(200);
 
@@ -78,6 +87,56 @@ describe("GET /api/tickets/:ticketId", () => {
     assert.equal(res.body.ticket.currentServing, t1.code);
     assert.equal(res.body.ticket.peopleAhead, 0);
     assert.equal(res.body.ticket.estimatedWaitMinutes, 0);
+  });
+
+  test("lets only the ticket owner confirm arrival, idempotently", async () => {
+    const { merchant, first, queue, t1 } = await queueWithTwoCustomers();
+    const otherCustomer = await registerUser();
+
+    await api().post(`/api/queues/${queue.id}/next`).set(bearer(merchant.token)).expect(200);
+
+    const forbidden = await arriveTicket(otherCustomer.token, t1.id);
+    assert.equal(forbidden.status, 404);
+
+    const arrived = await arriveTicket(first.token, t1.id);
+    assert.equal(arrived.status, 200);
+    assert.ok(arrived.body.ticket.arrivedAt);
+
+    const repeated = await arriveTicket(first.token, t1.id);
+    assert.equal(repeated.status, 200);
+    assert.equal(repeated.body.ticket.arrivedAt, arrived.body.ticket.arrivedAt);
+
+    const notFound = await arriveTicket(first.token, "00000000-0000-4000-8000-000000000000");
+    assert.equal(notFound.status, 404);
+  });
+
+  test("arrival after the database deadline loses the race and records no-show", async () => {
+    const { merchant, first, queue, t1 } = await queueWithTwoCustomers();
+    await api().post(`/api/queues/${queue.id}/next`).set(bearer(merchant.token)).expect(200);
+    await pool.query(
+      "UPDATE tickets SET called_at = NOW() - INTERVAL '11 minutes' WHERE id = $1",
+      [t1.id]
+    );
+
+    const lateArrival = await arriveTicket(first.token, t1.id);
+    assert.equal(lateArrival.status, 200);
+    assert.equal(lateArrival.body.ticket.status, "no_show");
+  });
+
+  test("expired called tickets become no-show and the queue calls the next ticket", async () => {
+    const { merchant, first, second, queue, t1, t2 } = await queueWithTwoCustomers();
+    await api().post(`/api/queues/${queue.id}/next`).set(bearer(merchant.token)).expect(200);
+    await pool.query(
+      "UPDATE tickets SET called_at = NOW() - INTERVAL '11 minutes' WHERE id = $1",
+      [t1.id]
+    );
+
+    assert.equal(await expireNoShowTickets(), 1);
+    const firstTicket = await api().get(`/api/tickets/${t1.id}`).set(bearer(first.token));
+    const secondTicket = await api().get(`/api/tickets/${t2.id}`).set(bearer(second.token));
+    assert.equal(firstTicket.body.ticket.status, "no_show");
+    assert.equal(secondTicket.body.ticket.status, "serving");
+    assert.ok(secondTicket.body.ticket.calledAt);
   });
 
   test("returns 404 for another customer's ticket", async () => {

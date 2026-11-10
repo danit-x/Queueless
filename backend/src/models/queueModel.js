@@ -283,9 +283,8 @@ export async function issueTicket({ queueId, userId }) {
 }
 
 /**
- * Advances the queue: the customer currently being served is marked 'served' and
- * the lowest waiting ticket is promoted to 'serving'. Runs as one transaction so
- * the queue is never left with two serving customers or none mid-update.
+ * Calls the first waiting customer and starts their arrival grace period.
+ * Completion is a separate counter action handled by completeTicket().
  *
  * @param {string} queueId
  * @returns {Promise<object>} the updated queue in API shape
@@ -310,21 +309,17 @@ export async function advanceQueue(queueId) {
       );
     }
 
-    // Complete the current customer first: idx_tickets_one_serving_per_queue
-    // permits only one 'serving' row per queue.
     const { rows: servingRows } = await client.query(
       `SELECT id
          FROM tickets
         WHERE queue_id = $1
           AND status = 'serving'
-        FOR UPDATE`,
+        LIMIT 1`,
       [queueId]
     );
 
     if (servingRows.length > 0) {
-      await client.query("UPDATE tickets SET status = 'served' WHERE id = $1", [
-        servingRows[0].id,
-      ]);
+      throw ApiError.conflict("Complete the current service before calling the next customer.");
     }
 
     const { rows: nextRows } = await client.query(
@@ -339,15 +334,13 @@ export async function advanceQueue(queueId) {
     );
 
     if (nextRows.length === 0) {
-      if (servingRows.length === 0) {
-        throw ApiError.conflict("Nobody is waiting in this queue.");
-      }
-      return;
+      throw ApiError.conflict("Nobody is waiting in this queue.");
     }
 
-    await client.query("UPDATE tickets SET status = 'serving' WHERE id = $1", [
-      nextRows[0].id,
-    ]);
+    await client.query(
+      "UPDATE tickets SET status = 'serving', called_at = clock_timestamp() WHERE id = $1",
+      [nextRows[0].id]
+    );
   });
 
   return findQueueById(queueId);

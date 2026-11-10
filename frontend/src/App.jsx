@@ -7,6 +7,7 @@ import Home from "./pages/Home_2";
 import Login from "./pages/Login";
 import ManageQueue from "./pages/ManageQueue";
 import Profile from "./pages/Profile";
+import QueueDetails from "./pages/QueueDetails";
 import Register from "./pages/Register";
 import Ticket from "./pages/Ticket";
 
@@ -34,6 +35,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <CreateQueue />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/queues/:queueId"
+          element={
+            <ProtectedRoute>
+              <QueueDetails />
             </ProtectedRoute>
           }
         />
@@ -66,4 +75,3 @@ export default function App() {
     </>
   );
 }
-

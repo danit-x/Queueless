@@ -7,6 +7,10 @@ import { pathToFileURL } from "node:url";
 import { env } from "./config/env.js";
 import { checkDatabaseHealth, closePool, verifyDatabaseConnection } from "./config/db.js";
 import { initializeDatabase } from "./config/initDb.js";
+import {
+  expireNoShowTickets,
+  NO_SHOW_SWEEP_INTERVAL_MS,
+} from "./models/ticketModel.js";
 import { errorHandler, notFoundHandler } from "./middleware/errorHandler.js";
 import authRoutes from "./routes/authRoutes.js";
 import queueRoutes from "./routes/queueRoutes.js";
@@ -111,8 +115,30 @@ async function startServer() {
   server.keepAliveTimeout = 60_000;
   server.headersTimeout = 65_000;
 
+  let noShowSweepTask = null;
+  const sweepNoShows = () => {
+    if (noShowSweepTask) return noShowSweepTask;
+
+    noShowSweepTask = expireNoShowTickets()
+      .then((count) => {
+        if (count > 0) console.log(`[queue] Marked ${count} ticket(s) as no-show.`);
+      })
+      .catch((error) => {
+        console.error(`[queue] No-show sweep failed: ${error.message}`);
+      })
+      .finally(() => {
+        noShowSweepTask = null;
+      });
+
+    return noShowSweepTask;
+  };
+  void sweepNoShows();
+  const noShowSweepTimer = setInterval(sweepNoShows, NO_SHOW_SWEEP_INTERVAL_MS);
+  noShowSweepTimer.unref();
+
   const shutdown = (signal) => {
     console.log(`[api] ${signal} received, shutting down gracefully.`);
+    clearInterval(noShowSweepTimer);
 
     server.close(async (error) => {
       if (error) {
@@ -120,6 +146,7 @@ async function startServer() {
       }
 
       try {
+        if (noShowSweepTask) await noShowSweepTask;
         await closePool();
         console.log("[db] Connection pool closed.");
       } catch (poolError) {

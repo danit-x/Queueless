@@ -80,6 +80,7 @@ function statusLabel(status) {
   if (status === "serving") return "Your turn";
   if (status === "served") return "Completed";
   if (status === "cancelled") return "Left queue";
+  if (status === "no_show") return "No-show";
   return "Waiting";
 }
 
@@ -246,7 +247,11 @@ export default function Dashboard() {
     [tickets]
   );
   const historyTickets = useMemo(
-    () => tickets.filter((ticket) => ticket.status === "served" || ticket.status === "cancelled"),
+    () => tickets.filter(
+      (ticket) => ticket.status === "served" ||
+        ticket.status === "cancelled" ||
+        ticket.status === "no_show"
+    ),
     [tickets]
   );
   const activeTicket = activeTickets[0] ?? null;
@@ -636,6 +641,7 @@ function QueueList({
         <div>
           <p className="cd-kicker">Available services</p>
           <h2>{category.name} Services</h2>
+          <p>{category.description}</p>
           <p>Choose an available queue to continue.</p>
         </div>
       </header>
@@ -665,6 +671,9 @@ function QueueList({
                   <div><span>Estimated wait</span><strong>{queue.estimatedWaitMinutes} minutes</strong></div>
                 </div>
                 <div className="cd-queue-actions">
+                  <Link className="cd-btn cd-btn-secondary" to={`/queues/${queue.id}`}>
+                    View Queue
+                  </Link>
                   {alreadyJoined ? (
                     <Link className="cd-btn" to={`/tickets/${activeTicket.id}`}>
                       View ticket {activeTicket.code}
@@ -754,9 +763,9 @@ function TicketList({ title, empty, tickets, loading }) {
                 <span>{ticket.queueName}</span>
               </div>
               <span className="cd-pill">{statusLabel(ticket.status)}</span>
-              {(ticket.status === "waiting" || ticket.status === "serving") && (
-                <Link to={`/tickets/${ticket.id}`}>Open</Link>
-              )}
+              <Link to={`/tickets/${ticket.id}`}>
+                {ticket.status === "no_show" ? "View details" : "Open"}
+              </Link>
             </li>
           ))}
         </ul>

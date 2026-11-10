@@ -1,4 +1,4 @@
-import { pool } from "../config/db.js";
+import { pool, withTransaction } from "../config/db.js";
 import { ApiError } from "../utils/ApiError.js";
 import {
   TICKET_VIEW_COLUMNS,
@@ -6,9 +6,33 @@ import {
   mapTicketView,
 } from "./ticketPresenter.js";
 
-export const TICKET_STATUSES = Object.freeze(["waiting", "serving", "served", "cancelled"]);
+export const TICKET_STATUSES = Object.freeze(["waiting", "serving", "served", "cancelled", "no_show"]);
+export const NO_SHOW_GRACE_PERIOD_MINUTES = 10;
+export const NO_SHOW_SWEEP_INTERVAL_MS = 15_000;
 
 const ACTIVE_STATUSES = ["waiting", "serving"];
+
+async function callNextWaitingTicket(client, queueId, queueStatus) {
+  if (queueStatus !== "active") return;
+
+  const { rows } = await client.query(
+    `SELECT id
+       FROM tickets
+      WHERE queue_id = $1
+        AND status = 'waiting'
+      ORDER BY ticket_number ASC, created_at ASC
+      LIMIT 1
+      FOR UPDATE`,
+    [queueId]
+  );
+
+  if (rows[0]) {
+    await client.query(
+      "UPDATE tickets SET status = 'serving', called_at = clock_timestamp() WHERE id = $1",
+      [rows[0].id]
+    );
+  }
+}
 
 /**
  * Resolves the caller's ticket to a status filter.
@@ -80,20 +104,155 @@ export async function getTicketView(ticketId) {
 }
 
 /**
- * Sets a waiting or serving ticket to 'served'.
+ * Records a customer's arrival within the database-enforced grace period.
+ * @param {string} ticketId
+ */
+export async function markTicketArrived(ticketId) {
+  return withTransaction(async (client) => {
+    const { rows: queueRows } = await client.query(
+      `SELECT q.id, q.status
+         FROM queues q
+         JOIN tickets t ON t.queue_id = q.id
+        WHERE t.id = $1
+        FOR UPDATE OF q`,
+      [ticketId]
+    );
+
+    if (queueRows.length === 0) {
+      throw ApiError.notFound("Ticket not found.");
+    }
+
+    const queue = queueRows[0];
+    const { rows: ticketRows } = await client.query(
+      "SELECT status, called_at, arrived_at FROM tickets WHERE id = $1 FOR UPDATE",
+      [ticketId]
+    );
+    const ticket = ticketRows[0];
+
+    if (ticket.status === "no_show") {
+      const { rows } = await client.query(
+        `SELECT ${TICKET_VIEW_COLUMNS} ${TICKET_VIEW_FROM} WHERE t.id = $1`,
+        [ticketId]
+      );
+      return mapTicketView(rows[0]);
+    }
+
+    if (ticket.status !== "serving" || !ticket.called_at) {
+      throw ApiError.conflict("Arrival can only be confirmed after your ticket is called.");
+    }
+
+    if (ticket.arrived_at) {
+      const { rows } = await client.query(
+        `SELECT ${TICKET_VIEW_COLUMNS} ${TICKET_VIEW_FROM} WHERE t.id = $1`,
+        [ticketId]
+      );
+      return mapTicketView(rows[0]);
+    }
+
+    const { rows: deadlineRows } = await client.query(
+      `SELECT $1::timestamptz <= clock_timestamp() - ($2 * INTERVAL '1 minute') AS expired`,
+      [ticket.called_at, NO_SHOW_GRACE_PERIOD_MINUTES]
+    );
+
+    if (deadlineRows[0].expired) {
+      await client.query(
+        `UPDATE tickets
+            SET status = 'no_show'
+          WHERE id = $1 AND status = 'serving' AND arrived_at IS NULL`,
+        [ticketId]
+      );
+      await callNextWaitingTicket(client, queue.id, queue.status);
+    } else {
+      await client.query(
+        "UPDATE tickets SET arrived_at = clock_timestamp() WHERE id = $1",
+        [ticketId]
+      );
+    }
+
+    const { rows } = await client.query(
+      `SELECT ${TICKET_VIEW_COLUMNS} ${TICKET_VIEW_FROM} WHERE t.id = $1`,
+      [ticketId]
+    );
+    return mapTicketView(rows[0]);
+  });
+}
+
+/**
+ * Completes the serving ticket and calls the next waiting ticket atomically.
  * @param {string} ticketId
  */
 export async function completeTicket(ticketId) {
-  const { rows } = await pool.query(
-    `UPDATE tickets
-        SET status = 'served'
-      WHERE id = $1
-        AND status IN ('waiting', 'serving')
-      RETURNING id`,
-    [ticketId]
-  );
+  return withTransaction(async (client) => {
+    const { rows: queueRows } = await client.query(
+      `SELECT q.id, q.status
+         FROM queues q
+         JOIN tickets t ON t.queue_id = q.id
+        WHERE t.id = $1
+        FOR UPDATE OF q`,
+      [ticketId]
+    );
 
-  return rows.length > 0;
+    if (queueRows.length === 0) return false;
+    const queue = queueRows[0];
+
+    const { rows: ticketRows } = await client.query(
+      "SELECT status, arrived_at FROM tickets WHERE id = $1 FOR UPDATE",
+      [ticketId]
+    );
+
+    if (ticketRows[0]?.status !== "serving") return false;
+    if (!ticketRows[0].arrived_at) return false;
+
+    await client.query(
+      "UPDATE tickets SET status = 'served', completed_at = clock_timestamp() WHERE id = $1",
+      [ticketId]
+    );
+    await callNextWaitingTicket(client, queue.id, queue.status);
+
+    return true;
+  });
+}
+
+/**
+ * Marks expired called tickets as no-shows and calls the next customer.
+ * Queue and ticket row locks with SKIP LOCKED coordinate multiple API instances.
+ * @returns {Promise<number>} number of tickets transitioned to no-show
+ */
+export async function expireNoShowTickets() {
+  return withTransaction(async (client) => {
+    const { rows: expiredTickets } = await client.query(
+      `SELECT q.id AS queue_id, q.status AS queue_status, t.id AS ticket_id
+         FROM queues q
+         JOIN tickets t ON t.queue_id = q.id
+        WHERE t.status = 'serving'
+          AND t.arrived_at IS NULL
+          AND t.called_at <= clock_timestamp() - ($1 * INTERVAL '1 minute')
+        ORDER BY t.called_at, t.id
+        LIMIT 100
+        FOR UPDATE OF q, t SKIP LOCKED`,
+      [NO_SHOW_GRACE_PERIOD_MINUTES]
+    );
+
+    let transitioned = 0;
+    for (const ticket of expiredTickets) {
+      const { rowCount } = await client.query(
+        `UPDATE tickets
+            SET status = 'no_show'
+          WHERE id = $1
+            AND status = 'serving'
+            AND arrived_at IS NULL
+            AND called_at <= clock_timestamp() - ($2 * INTERVAL '1 minute')`,
+        [ticket.ticket_id, NO_SHOW_GRACE_PERIOD_MINUTES]
+      );
+
+      if (rowCount === 0) continue;
+
+      transitioned += 1;
+      await callNextWaitingTicket(client, ticket.queue_id, ticket.queue_status);
+    }
+
+    return transitioned;
+  });
 }
 
 /**
@@ -104,14 +263,27 @@ export async function completeTicket(ticketId) {
  * @returns {Promise<{ alreadyCancelled: boolean }>}
  */
 export async function cancelTicket(ticketId) {
-  const { rows } = await pool.query(
-    `UPDATE tickets
-        SET status = 'cancelled'
-      WHERE id = $1
-        AND status <> 'cancelled'
-      RETURNING id`,
-    [ticketId]
-  );
+  return withTransaction(async (client) => {
+    const { rows: queueRows } = await client.query(
+      `SELECT q.id
+         FROM queues q
+         JOIN tickets t ON t.queue_id = q.id
+        WHERE t.id = $1
+        FOR UPDATE OF q`,
+      [ticketId]
+    );
+    if (queueRows.length === 0) return { alreadyCancelled: true };
 
-  return { alreadyCancelled: rows.length === 0 };
+    const { rows } = await client.query(
+      "SELECT status FROM tickets WHERE id = $1 FOR UPDATE",
+      [ticketId]
+    );
+    if (rows[0]?.status === "cancelled") return { alreadyCancelled: true };
+    if (rows[0]?.status !== "waiting") {
+      throw ApiError.conflict("Only a waiting ticket can be cancelled.");
+    }
+
+    await client.query("UPDATE tickets SET status = 'cancelled' WHERE id = $1", [ticketId]);
+    return { alreadyCancelled: false };
+  });
 }

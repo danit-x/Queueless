@@ -52,6 +52,9 @@ CREATE TABLE IF NOT EXISTS tickets (
   ticket_number INT NOT NULL,
   code VARCHAR(10) NOT NULL,
   status VARCHAR(20) NOT NULL DEFAULT 'waiting',
+  called_at TIMESTAMPTZ,
+  arrived_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
@@ -71,6 +74,9 @@ ALTER TABLE queues ADD COLUMN IF NOT EXISTS next_ticket_number INT NOT NULL DEFA
 ALTER TABLE queues ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS code VARCHAR(10) NOT NULL DEFAULT '';
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS called_at TIMESTAMPTZ;
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS arrived_at TIMESTAMPTZ;
+ALTER TABLE tickets ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;
 ALTER TABLE tickets ADD COLUMN IF NOT EXISTS updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW();
 
 -- Historical rows predate `code`; derive it from the queue prefix.
@@ -124,6 +130,7 @@ END $$;
 -- before tickets_status_check is added below, otherwise the constraint rejects
 -- the rows that are still marked 'completed'.
 UPDATE tickets SET status = 'served' WHERE status = 'completed';
+UPDATE tickets SET called_at = NOW() WHERE status = 'serving' AND called_at IS NULL;
 
 -- ---------------------------------------------------------------------------
 -- Value constraints, added only when missing so re-runs stay idempotent.
@@ -155,16 +162,15 @@ BEGIN
       CHECK (next_ticket_number > 0);
   END IF;
 
-  IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tickets_status_check') THEN
-    ALTER TABLE tickets ADD CONSTRAINT tickets_status_check
-      CHECK (status IN ('waiting', 'serving', 'served', 'cancelled'));
-  END IF;
-
   IF NOT EXISTS (SELECT 1 FROM pg_constraint WHERE conname = 'tickets_number_check') THEN
     ALTER TABLE tickets ADD CONSTRAINT tickets_number_check
       CHECK (ticket_number > 0);
   END IF;
 END $$;
+
+ALTER TABLE tickets DROP CONSTRAINT IF EXISTS tickets_status_check;
+ALTER TABLE tickets ADD CONSTRAINT tickets_status_check
+  CHECK (status IN ('waiting', 'serving', 'served', 'cancelled', 'no_show'));
 
 -- ---------------------------------------------------------------------------
 -- Indexes
@@ -173,6 +179,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS idx_users_email ON users (email);
 
 CREATE INDEX IF NOT EXISTS idx_tickets_queue ON tickets (queue_id);
 CREATE INDEX IF NOT EXISTS idx_tickets_queue_status ON tickets (queue_id, status, ticket_number);
+CREATE INDEX IF NOT EXISTS idx_tickets_no_show_deadline
+  ON tickets (called_at)
+  WHERE status = 'serving' AND arrived_at IS NULL;
 CREATE INDEX IF NOT EXISTS idx_tickets_user ON tickets (user_id, created_at DESC);
 CREATE INDEX IF NOT EXISTS idx_queues_owner ON queues (owner_id);
 CREATE INDEX IF NOT EXISTS idx_queues_status ON queues (status);

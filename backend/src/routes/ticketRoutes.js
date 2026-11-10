@@ -4,6 +4,7 @@ import {
   getMyTickets,
   getTicket,
   leaveQueue,
+  markTicketArrivedHandler,
 } from "../controllers/queueController.js";
 import { authenticateToken } from "../middleware/authMiddleware.js";
 
@@ -17,6 +18,7 @@ router.get("/me", getMyTickets);
 
 router.get("/:ticketId", getTicket);
 router.delete("/:ticketId", leaveQueue);
+router.post("/:ticketId/arrive", markTicketArrivedHandler);
 router.patch("/:ticketId/complete", completeTicketHandler);
 
 export default router;

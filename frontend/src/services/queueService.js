@@ -21,6 +21,16 @@ export async function callNextTicket(queueId) {
   return data;
 }
 
+export async function completeTicket(ticketId) {
+  const { data } = await apiClient.patch(`/tickets/${ticketId}/complete`);
+  return data;
+}
+
+export async function markTicketArrived(ticketId) {
+  const { data } = await apiClient.post(`/tickets/${ticketId}/arrive`);
+  return data;
+}
+
 export async function updateQueueStatus(queueId, status) {
   const { data } = await apiClient.patch(`/queues/${queueId}/status`, { status });
   return data;
@@ -35,6 +45,11 @@ export async function getMyTickets({ status } = {}) {
 
 export async function getQueue(queueId) {
   const { data } = await apiClient.get(`/queues/${queueId}`);
+  return data;
+}
+
+export async function getQueueTickets(queueId) {
+  const { data } = await apiClient.get(`/queues/${queueId}/tickets`);
   return data;
 }
 
@@ -55,10 +70,13 @@ export const queueApi = {
   joinQueue,
   callNextTicket,
   serveNext: callNextTicket,
+  completeTicket,
+  markTicketArrived,
   updateQueueStatus,
   getMyTickets,
   myTickets: getMyTickets,
   getQueue,
+  getQueueTickets,
   getTicket,
   leaveTicket,
 };

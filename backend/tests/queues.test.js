@@ -3,10 +3,12 @@ import { after, before, describe, test } from "node:test";
 
 import {
   api,
+  arriveTicket,
   bearer,
   closePool,
   createQueue,
   joinQueue,
+  pool,
   prepareDatabase,
   registerUser,
 } from "./helpers.js";
@@ -136,7 +138,35 @@ describe("POST /api/queues/:queueId/join", () => {
 });
 
 describe("POST /api/queues/:queueId/next", () => {
-  test("serves tickets in order and marks the previous one served", async () => {
+  test("completion automatically calls the next customer and starts their grace period", async () => {
+    const merchant = await registerUser({ role: "merchant" });
+    const queue = await createQueue(merchant.token, { ticketPrefix: "A" });
+    const first = await registerUser();
+    const second = await registerUser();
+    const t1 = (await joinQueue(first.token, queue.id)).body.ticket;
+    const t2 = (await joinQueue(second.token, queue.id)).body.ticket;
+
+    await api().post(`/api/queues/${queue.id}/next`).set(bearer(merchant.token)).expect(200);
+    await arriveTicket(first.token, t1.id).expect(200);
+    const completed = await api()
+      .patch(`/api/tickets/${t1.id}/complete`)
+      .set(bearer(merchant.token));
+
+    assert.equal(completed.status, 200);
+    assert.equal(completed.body.ticket.status, "served");
+    assert.equal(completed.body.queue.currentServing, t2.code);
+    await arriveTicket(second.token, t2.id).expect(200);
+    const completedSecond = await api()
+      .patch(`/api/tickets/${t2.id}/complete`)
+      .set(bearer(merchant.token));
+    assert.equal(completedSecond.status, 200);
+    assert.equal(completedSecond.body.queue.currentServing, null);
+    const calledSecond = await api().get(`/api/tickets/${t2.id}`).set(bearer(second.token));
+    assert.equal(calledSecond.body.ticket.status, "serving");
+    assert.ok(calledSecond.body.ticket.calledAt);
+  });
+
+  test("calls customers before arrival and requires arrival before completion", async () => {
     const merchant = await registerUser({ role: "merchant" });
     const queue = await createQueue(merchant.token, { ticketPrefix: "N" });
     const first = await registerUser();
@@ -151,22 +181,46 @@ describe("POST /api/queues/:queueId/next", () => {
     assert.equal(step1.status, 200);
     assert.equal(step1.body.queue.currentServing, t1.code);
     assert.equal(step1.body.queue.waitingCount, 1);
+    const calledTicket = await api().get(`/api/tickets/${t1.id}`).set(bearer(first.token));
+    assert.ok(calledTicket.body.ticket.calledAt);
 
-    const step2 = await callNext();
-    assert.equal(step2.status, 200);
-    assert.equal(step2.body.queue.currentServing, t2.code);
-    assert.equal(step2.body.queue.waitingCount, 0);
+    const completeBeforeArrival = await api()
+      .patch(`/api/tickets/${t1.id}/complete`)
+      .set(bearer(merchant.token));
+    assert.equal(completeBeforeArrival.status, 409);
+    await arriveTicket(first.token, t1.id).expect(200);
 
-    const firstTicket = await api().get(`/api/tickets/${t1.id}`).set(bearer(first.token));
-    assert.equal(firstTicket.body.ticket.status, "served");
+    const callWhileServing = await callNext();
+    assert.equal(callWhileServing.status, 409);
+    assert.match(callWhileServing.body.message, /complete/i);
 
-    // Completes the last serving ticket, leaving nobody at the counter.
-    const step3 = await callNext();
-    assert.equal(step3.status, 200);
-    assert.equal(step3.body.queue.currentServing, null);
+    const customerComplete = await api()
+      .patch(`/api/tickets/${t1.id}/complete`)
+      .set(bearer(first.token));
+    assert.equal(customerComplete.status, 404);
 
-    const step4 = await callNext();
-    assert.equal(step4.status, 409);
+    const completedFirst = await api()
+      .patch(`/api/tickets/${t1.id}/complete`)
+      .set(bearer(merchant.token));
+    assert.equal(completedFirst.status, 200);
+    assert.equal(completedFirst.body.ticket.status, "served");
+    assert.equal(completedFirst.body.queue.currentServing, t2.code);
+    assert.equal(completedFirst.body.queue.waitingCount, 0);
+    const completeBeforeArrival = await api()
+      .patch(`/api/tickets/${t2.id}/complete`)
+      .set(bearer(merchant.token));
+    assert.equal(completeBeforeArrival.status, 409);
+    await arriveTicket(second.token, t2.id).expect(200);
+
+    const completedSecond = await api()
+      .patch(`/api/tickets/${t2.id}/complete`)
+      .set(bearer(merchant.token));
+    assert.equal(completedSecond.status, 200);
+    assert.equal(completedSecond.body.ticket.status, "served");
+    assert.equal(completedSecond.body.queue.currentServing, null);
+
+    const emptyQueue = await callNext();
+    assert.equal(emptyQueue.status, 409);
   });
 
   test("returns 404 for a customer or a merchant who does not own the queue", async () => {

@@ -5,21 +5,29 @@ import { usePolling } from "../hooks/usePolling";
 import {
   POLL_INTERVAL_MS,
   callNextTicket,
+  completeTicket,
   getQueue,
+  getQueueTickets,
   updateQueueStatus,
 } from "../services/queueService";
 
 export default function ManageQueue() {
   const { queueId } = useParams();
   const [queue, setQueue] = useState(null);
+  const [tickets, setTickets] = useState([]);
   const [error, setError] = useState("");
   const [calling, setCalling] = useState(false);
+  const [completing, setCompleting] = useState(false);
   const [updatingStatus, setUpdatingStatus] = useState(false);
 
   async function refresh() {
     try {
-      const data = await getQueue(queueId);
-      setQueue(data.queue);
+      const [queueData, ticketData] = await Promise.all([
+        getQueue(queueId),
+        getQueueTickets(queueId),
+      ]);
+      setQueue(queueData.queue);
+      setTickets(ticketData.tickets);
       setError("");
     } catch (error) {
       setError(error.message);
@@ -35,10 +43,27 @@ export default function ManageQueue() {
     try {
       const data = await callNextTicket(queueId);
       setQueue(data.queue);
+      await refresh();
     } catch (error) {
       setError(error.message);
     } finally {
       setCalling(false);
+    }
+  }
+
+  async function handleCompleteService() {
+    if (!servingTicket) return;
+
+    setCompleting(true);
+    setError("");
+
+    try {
+      await completeTicket(servingTicket.id);
+      await refresh();
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setCompleting(false);
     }
   }
 
@@ -57,6 +82,15 @@ export default function ManageQueue() {
     }
   }
 
+  const servingTicket = tickets.find((ticket) => ticket.status === "serving");
+  const nextWaitingTicket = tickets.find((ticket) => ticket.status === "waiting");
+  const canCallNext =
+    queue?.status === "active" &&
+    !servingTicket &&
+    !queue?.currentServing &&
+    Boolean(nextWaitingTicket);
+  const canCompleteService = Boolean(servingTicket?.arrivedAt);
+
   return (
     <AppLayout>
       <Link to="/dashboard" className="text-sm font-medium text-brand-700 hover:underline">
@@ -73,6 +107,14 @@ export default function ManageQueue() {
           <>
             <p className="mt-8 text-sm font-medium uppercase tracking-wide text-slate-500">Now serving</p>
             <p className="mt-1 text-7xl font-bold tracking-tight text-slate-900">{queue.currentServing ?? "—"}</p>
+            {servingTicket && (
+              <p className="mt-2 text-sm text-slate-600">
+                Current customer: {servingTicket.code}
+                {servingTicket.arrivedAt
+                  ? " · arrival confirmed"
+                  : " · awaiting arrival confirmation (10-minute grace period)"}
+              </p>
+            )}
             <p className="mt-4 text-slate-600">
               <span className="font-semibold text-slate-900">{queue.waitingCount}</span>{" "}
               {queue.waitingCount === 1 ? "person" : "people"} waiting
@@ -81,11 +123,29 @@ export default function ManageQueue() {
             <button
               type="button"
               onClick={handleCallNext}
-              disabled={calling || queue.waitingCount === 0}
+              disabled={calling || completing || !canCallNext}
               className="mt-8 w-full rounded-md bg-brand-600 px-4 py-3 font-medium text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-70"
             >
-              {calling ? "Calling..." : "Call next customer"}
+              {calling
+                ? "Calling..."
+                : !queue.currentServing && nextWaitingTicket
+                  ? `Call next · ${nextWaitingTicket.code}`
+                  : "Call next customer"}
             </button>
+            {servingTicket && (
+              <button
+                type="button"
+                onClick={handleCompleteService}
+                disabled={completing || calling || !canCompleteService}
+                className="mt-3 w-full rounded-md bg-emerald-600 px-4 py-3 font-medium text-white hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {completing
+                  ? "Completing service..."
+                  : canCompleteService
+                    ? `Complete service · ${servingTicket.code}`
+                    : `Waiting for ${servingTicket.code} to arrive`}
+              </button>
+            )}
             <button
               type="button"
               onClick={handleToggleQueueStatus}

@@ -482,7 +482,7 @@
   font-size: 1.55rem;
 }
 
-.cd-service-heading p:last-child {
+.cd-service-heading p:not(.cd-kicker) {
   margin: 4px 0 0;
   color: var(--muted);
 }
@@ -548,6 +548,16 @@
   background: transparent;
   border: 1px solid #f0c2bc;
   color: #b42318;
+}
+
+.cd-btn-secondary {
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--brand);
+}
+
+.cd-btn-secondary:hover:not(:disabled) {
+  background: #f3f8f6;
 }
 
 .cd-queue-list {

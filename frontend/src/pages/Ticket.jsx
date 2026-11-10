@@ -3,16 +3,22 @@ import { Link, useNavigate, useParams } from "react-router-dom";
 import AppLayout from "../layouts/AppLayout";
 import TurnAlert from "../components/TurnAlert";
 import { usePolling } from "../hooks/usePolling";
-import { getTicket, leaveTicket, POLL_INTERVAL_MS } from "../services/queueService";
+import {
+  getTicket,
+  leaveTicket,
+  markTicketArrived,
+  POLL_INTERVAL_MS,
+} from "../services/queueService";
 
 const MAX_QUEUE_DOTS = 10;
 
-// Keys match the API's ticket statuses: waiting | serving | served | cancelled.
+// Keys match the API's ticket statuses.
 const statusLabels = {
   waiting: { text: "Waiting", className: "bg-brand-50 text-brand-700" },
   serving: { text: "Your turn", className: "bg-emerald-50 text-emerald-700" },
   served: { text: "Completed", className: "bg-slate-100 text-slate-700" },
   cancelled: { text: "Left queue", className: "bg-slate-100 text-slate-700" },
+  no_show: { text: "No-show", className: "bg-red-50 text-red-700" },
 };
 
 function QueueLine({ peopleAhead }) {
@@ -36,6 +42,7 @@ export default function Ticket() {
   const [ticket, setTicket] = useState(null);
   const [error, setError] = useState("");
   const [leaving, setLeaving] = useState(false);
+  const [confirmingArrival, setConfirmingArrival] = useState(false);
   const [loading, setLoading] = useState(true);
 
   async function refresh() {
@@ -68,6 +75,19 @@ export default function Ticket() {
     } catch (error) {
       setError(error.message);
       setLeaving(false);
+    }
+  }
+
+  async function handleArrival() {
+    setConfirmingArrival(true);
+    setError("");
+    try {
+      const data = await markTicketArrived(ticketId);
+      setTicket(data.ticket);
+    } catch (error) {
+      setError(error.message);
+    } finally {
+      setConfirmingArrival(false);
     }
   }
 
@@ -138,6 +158,37 @@ export default function Ticket() {
 
           {ticket.status === "served" && (
             <p className="mt-6 text-sm text-slate-600">This ticket has been served. Thanks for using QueueLess!</p>
+          )}
+          {ticket.status === "no_show" && (
+            <p className="mt-6 rounded-md bg-red-50 p-3 text-sm text-red-800" role="status">
+              This ticket was marked as a no-show because arrival was not confirmed within 10 minutes
+              after it was called. Please join the queue again if you still need service.
+            </p>
+          )}
+          {ticket.status === "serving" && !ticket.arrivedAt && (
+            <div className="mt-6">
+              <p className="mb-3 text-sm text-slate-600">
+                Your turn has been called. Arrive and confirm within 10 minutes to keep your place.
+              </p>
+              <button
+                type="button"
+                onClick={handleArrival}
+                disabled={confirmingArrival}
+                className="w-full rounded-md bg-brand-600 px-4 py-3 font-medium text-white hover:bg-brand-700 disabled:cursor-not-allowed disabled:opacity-70"
+              >
+                {confirmingArrival ? "Confirming arrival..." : "I've Arrived"}
+              </button>
+            </div>
+          )}
+          {ticket.status === "serving" && ticket.arrivedAt && (
+            <p className="mt-6 rounded-md bg-emerald-50 p-3 text-sm font-medium text-emerald-800">
+              Arrival confirmed. Please proceed to the service counter.
+            </p>
+          )}
+          {ticket.status === "waiting" && (
+            <p className="mt-6 text-sm text-slate-600">
+              You joined remotely. QueueLess will notify you when your turn is called.
+            </p>
           )}
         </section>
 

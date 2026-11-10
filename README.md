@@ -218,12 +218,14 @@ that message to the user.
 `GET /api/queues` accepts `?status=active|paused|closed|all` (default `active`),
 `?category=` for an exact case-insensitive category match, and `?mine=true`.
 
-`GET /api/queues/my-tickets` accepts `?status=active|waiting|serving|served|cancelled|all`
+`GET /api/queues/my-tickets` accepts `?status=active|waiting|serving|served|cancelled|no_show|all`
 (default `all`, i.e. full history) and `?limit=` between 1 and 200.
 
 Joining returns `409` when you already hold an active ticket in that queue, or
-when the queue is paused or closed. `POST /api/queues/:queueId/next` returns
-`409` when nobody is waiting.
+when the queue is paused or closed. Customers can join remotely.
+`POST /api/queues/:queueId/next` calls the first waiting ticket and records
+`called_at`, starting a 10-minute arrival grace period. It returns `409` if
+somebody is already being served or nobody is waiting.
 
 ### Tickets
 
@@ -231,10 +233,23 @@ when the queue is paused or closed. `POST /api/queues/:queueId/next` returns
 | -------- | --------------------------------- | ------------------------- | ------------------------- |
 | `GET`    | `/api/tickets/me`                 | authenticated             | `200 { tickets, count }`  |
 | `GET`    | `/api/tickets/:ticketId`          | owner, queue owner, admin | `200 { ticket }`          |
+| `POST`   | `/api/tickets/:ticketId/arrive`   | ticket owner               | `200 { ticket }`          |
 | `DELETE` | `/api/tickets/:ticketId`          | owner, queue owner, admin | `200 { message, ticket }` |
-| `PATCH`  | `/api/tickets/:ticketId/complete` | owner, queue owner, admin | `200 { ticket }`          |
+| `PATCH`  | `/api/tickets/:ticketId/complete` | queue owner, admin         | `200 { ticket, queue }`   |
 
 `GET /api/tickets/me` is an alias of `GET /api/queues/my-tickets`.
+Customers confirm arrival only after their ticket has been called. PostgreSQL
+checks the 10-minute deadline; an arrival at or after the deadline loses to the
+no-show transition. A backend sweep runs every 15 seconds and uses row locks
+with `SKIP LOCKED` so multiple API instances cannot process the same ticket.
+An expired ticket becomes `no_show`, and the next waiting ticket is called in
+the same transaction when the queue is active.
+
+Completing service is allowed only for the currently serving ticket after its
+customer confirms arrival. It marks that ticket `served`, records
+`completed_at`, and calls the next waiting ticket in the same transaction.
+Waiting tickets can be cancelled; called tickets cannot be cancelled by the
+customer.
 
 Another customer's ticket returns `404` rather than `403`, so the API never
 confirms that a ticket exists.
@@ -270,9 +285,12 @@ Ticket = {
   category,
   code, // "C27"
   ticketNumber, // 27
-  status, // "waiting" | "serving" | "served" | "cancelled"
+  status, // "waiting" | "serving" | "served" | "cancelled" | "no_show"
+  calledAt, // ISO timestamp when the counter called this customer, otherwise null
+  arrivedAt, // ISO timestamp after arrival confirmation, otherwise null
+  completedAt, // ISO timestamp after service completion, otherwise null
   currentServing, // "C23"
-  peopleAhead, // 0 when serving, served or cancelled
+  peopleAhead, // 0 when serving or ticket is no longer waiting
   estimatedWaitMinutes, // peopleAhead * avgServiceMinutes
   createdAt,
   updatedAt,
@@ -300,8 +318,8 @@ The frontend includes the virtual queue screens:
 - `/dashboard` lists your active ticket and the queues you can join. Merchants and admins also see every queue they own (including paused and closed ones) and a **Create queue** button
 - `/queues/new` lets merchants and admins create a queue (name, category, ticket prefix, average service time)
 - `/profile` edits your name, email, phone number and profile photo
-- `/tickets/:ticketId` shows your number, who is being served now, how many people are ahead, and the estimated wait. It shows a "🔔 Your turn is coming soon" alert when 2 or fewer people are ahead, and can also send a browser notification.
-- `/queues/:queueId/manage` is a staff console with a "Call next customer" button
+- `/tickets/:ticketId` shows your number, who is being served now, how many people are ahead, and the estimated wait. Customers can leave while waiting and confirm arrival within 10 minutes after being called. The page polls for queue changes, alerts them when called, and explains if they become a no-show.
+- `/queues/:queueId/manage` is a staff console with separate **Call next customer** and **Complete service** actions. Completing a service calls the next waiting customer.
 
 The ticket and staff pages refresh every 5 seconds. Every signed-in page is behind `ProtectedRoute`.
 
@@ -314,7 +332,7 @@ Implemented:
 - Role-based authorization for merchant and admin routes
 - Queue CRUD with active, paused and closed status management
 - Atomic, race-free ticket issuance
-- Queue advancement with transactional now-serving promotion
+- Transactional queue calling, arrival confirmation, service completion, and 10-minute no-show handling
 - Ticket history, cancellation and completion
 - Protected dashboard, ticket, staff, queue-creation and profile pages, and logout
 - PostgreSQL schema with an idempotent, migration-safe upgrade path
