@@ -235,11 +235,29 @@ Some labs kill all your programs when you log out. Test it:
 | `ERROR: 'docker compose' plugin is missing` | Old Docker install | Ask the lab admin |
 | `ERROR: No token given` | Forgot the token | `bash lab-runner-setup.sh <TOKEN>` |
 | Registration fails with `404` / `Not Found` / token error | Token expired (over 1 hour) or mistyped | Get a new token (B4) and run B6 again |
-| `Could not find the latest runner version` | GitHub API limit on the shared campus IP | Wait 10 minutes and run again |
+| `error 403` / `GitHub API not reachable` | GitHub API limit on the shared campus IP | Fixed: the script now falls back to a pinned runner version. `git pull` and run again |
+| Download itself fails with 403 | Campus network blocks GitHub downloads | See **Manual runner download** below |
 | Runner shows **Offline** on GitHub | Runner process stopped | `bash lab-runner-setup.sh` again (it restarts it) |
 | Deploy fails, log mentions password / `authentication failed` | An old Postgres volume from a manual test uses a different password | `docker volume ls` → send the list to Claude before deleting anything |
 | Deploy fails, other reason | — | Open the failed run, copy its link, send it to Claude |
 | App works on lab PC, not from other PCs | Port 8080 blocked on the lab network | Ask the admin which port is allowed |
+
+### Manual runner download
+
+Only if the script's download fails. Copy-paste on the lab PC, then run the
+setup script again (it will say `Already downloaded`):
+
+```bash
+mkdir -p ~/actions-runner && cd ~/actions-runner
+curl -fL -o runner.tar.gz https://github.com/actions/runner/releases/download/v2.338.2/actions-runner-linux-x64-2.338.2.tar.gz
+echo "baebf204307bac6193480852732f0aba2ae97b6c5597c244f4d5558390147c40  runner.tar.gz" | sha256sum -c -
+tar xzf runner.tar.gz && rm runner.tar.gz
+cd ~/Queueless && bash scripts/lab-runner-setup.sh PASTE_TOKEN_HERE
+```
+
+`sha256sum` must print `runner.tar.gz: OK`. If `curl` also gives 403, download
+the same file on your laptop, copy it to `~/actions-runner/runner.tar.gz`
+(USB or `scp`), and continue from the `sha256sum` line.
 
 ### Useful commands on the lab PC
 

@@ -45,14 +45,24 @@ cd "$RUNNER_DIR"
 if [ -x ./config.sh ]; then
   ok "Already downloaded"
 else
-  RELEASE_JSON="$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest)"
-  VERSION="$(printf '%s' "$RELEASE_JSON" | grep -m1 '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/')"
-  [ -n "$VERSION" ] || fail "Could not find the latest runner version (GitHub API rate limit?). Try again in a few minutes."
+  # Ask the GitHub API for the latest version. On a shared campus IP this often
+  # fails with 403 (60 unauthenticated requests per hour per IP), so fall back
+  # to a pinned, known-good version with its official checksum.
+  FALLBACK_VERSION="2.338.2"
+  FALLBACK_SHA_x64="baebf204307bac6193480852732f0aba2ae97b6c5597c244f4d5558390147c40"
+  RELEASE_JSON="$(curl -fsSL https://api.github.com/repos/actions/runner/releases/latest 2>/dev/null || true)"
+  VERSION="$(printf '%s' "$RELEASE_JSON" | grep -m1 '"tag_name"' | sed -E 's/.*"v([^"]+)".*/\1/' || true)"
+  EXPECTED="$(printf '%s' "$RELEASE_JSON" | grep -o "BEGIN SHA linux-${ARCH} -->[0-9a-f]*" | sed 's/.*-->//' || true)"
+  if [ -z "$VERSION" ]; then
+    echo "    GitHub API not reachable (403 / rate limit) - using pinned runner v$FALLBACK_VERSION"
+    VERSION="$FALLBACK_VERSION"
+    if [ "$ARCH" = "x64" ]; then EXPECTED="$FALLBACK_SHA_x64"; else EXPECTED=""; fi
+  fi
   FILE="actions-runner-linux-${ARCH}-${VERSION}.tar.gz"
-  curl -fL -o "$FILE" "https://github.com/actions/runner/releases/download/v${VERSION}/${FILE}"
+  curl -fL -o "$FILE" "https://github.com/actions/runner/releases/download/v${VERSION}/${FILE}" \
+    || fail "Download failed. If this is 403 too, the campus network blocks GitHub downloads: download $FILE on another PC and copy it into $RUNNER_DIR, then run again."
 
-  # Verify the download against the checksum published in the release notes.
-  EXPECTED="$(printf '%s' "$RELEASE_JSON" | grep -o "BEGIN SHA linux-${ARCH} -->[0-9a-f]*" | sed 's/.*-->//')"
+  # Verify the download against the official checksum.
   if [ -n "$EXPECTED" ]; then
     echo "${EXPECTED}  ${FILE}" | sha256sum -c - >/dev/null || fail "Checksum mismatch for $FILE. Delete it and run again."
     ok "Checksum verified"
