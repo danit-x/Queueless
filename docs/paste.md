@@ -7,3 +7,5 @@ gh variable set FRONTEND_PORT --body 8081
 gh variable set CLIENT_ORIGIN --body http://10.50.80.174:8081
 cd /home/user/devops/Queueless && docker compose down
 
+curl -sI http://localhost:8080 | head -5; echo "== 8081"; ss -ltn | grep -E ':8081\b' || echo "8081 is free"
+
