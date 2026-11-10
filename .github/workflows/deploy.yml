@@ -69,8 +69,12 @@ jobs:
             -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-queueless}" < database/schema.sql
           echo "Schema applied"
 
+      # Always recreate the app containers (not the db). Otherwise Compose reuses
+      # a container left crash-looping by an earlier failed deploy, sees its old
+      # "unhealthy" state and fails at once. The db is only recreated when its
+      # config changes (Compose's default for dependencies).
       - name: Start / update stack
-        run: docker compose up -d --remove-orphans
+        run: docker compose up -d --remove-orphans --force-recreate backend frontend
 
       - name: Wait for backend health
         run: |
