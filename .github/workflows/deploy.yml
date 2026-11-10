@@ -55,6 +55,20 @@ jobs:
       - name: Build images
         run: docker compose build --pull
 
+      # Postgres only runs schema.sql when the volume is first created, and the
+      # API does not migrate in production (AUTO_MIGRATE=false). schema.sql is
+      # idempotent (CREATE ... IF NOT EXISTS, ADD COLUMN IF NOT EXISTS), so
+      # apply it on every deploy, before the new backend starts. One
+      # transaction: a failing migration changes nothing and stops the deploy.
+      - name: Start database
+        run: docker compose up -d --wait db
+
+      - name: Apply database schema
+        run: |
+          docker compose exec -T db psql -v ON_ERROR_STOP=1 --single-transaction -q \
+            -U "${POSTGRES_USER:-postgres}" -d "${POSTGRES_DB:-queueless}" < database/schema.sql
+          echo "Schema applied"
+
       - name: Start / update stack
         run: docker compose up -d --remove-orphans
 
