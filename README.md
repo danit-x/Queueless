@@ -1,6 +1,6 @@
 # QueueLess - Virtual Queue Management System
 
-QueueLess is a university DevOps project for a virtual queue management system. It provides a React frontend, an Express REST API, a PostgreSQL schema, JWT authentication, a protected dashboard, and a containerised deployment with Docker Compose and GitHub Actions.
+QueueLess is a university DevOps project for a virtual queue management system. It provides a React frontend, an Express REST API, a PostgreSQL schema, JWT authentication, a protected dashboard, and a containerised deployment with Docker Compose and a Jenkins CI/CD pipeline.
 
 ## Technology Stack
 
@@ -9,17 +9,13 @@ QueueLess is a university DevOps project for a virtual queue management system. 
 - PostgreSQL
 - JWT and bcrypt
 - npm, Git, Ubuntu on WSL 2
-- Docker, Docker Compose, GitHub Actions
+- Docker (Rootless), Docker Compose, Jenkins
 
 ## Project Structure
 
 ```text
 QueueLess/
-  .github/
-    workflows/
-      ci.yml
-      docker-publish.yml
-      smoke.yml
+  Jenkinsfile
   frontend/
     src/
       components/
@@ -393,23 +389,20 @@ curl http://localhost:8080/api/health
 
 ## CI/CD
 
-GitHub Actions workflows live in `.github/workflows/`:
+CI/CD runs on **Jenkins** with the declarative pipeline in [`Jenkinsfile`](Jenkinsfile).
+It runs on the team's lab PC (Jenkins agent label `rootless-docker`, Rootless
+Docker, no sudo):
 
-| Workflow             | Trigger                | Purpose                                                                                          |
-| -------------------- | ---------------------- | ------------------------------------------------------------------------------------------------ |
-| `ci.yml`             | push / PR to `main`    | Installs dependencies, runs the backend tests against PostgreSQL 16, builds both apps and Docker images, validates both Compose files |
-| `smoke.yml`          | push / PR to `main`    | Boots the production Compose stack and checks `/healthz` and `/api/health`                       |
-| `docker-publish.yml` | tag `v*.*.*` or manual | Publishes both images to GitHub Container Registry                                               |
-| `deploy.yml`         | CI passes on `main`, or manual | Deploys the production stack to the team's lab PC through a self-hosted runner           |
+| Stage | Purpose |
+| --- | --- |
+| Checkout / Check tools | Clone the commit, tag images `jenkins-<build>-<commit>`, show the Docker context |
+| Backend tests + Frontend build (parallel) | Backend tests against a throwaway PostgreSQL 16; Vite build archived as an artifact |
+| Build images | Build both production images (`:<build tag>` and `:latest`) |
+| Push to Docker Hub | Optional (`PUSH_IMAGES` parameter) |
+| Deploy + Smoke test | Run `docker-compose.prod.yml` on the lab PC and check `/api/health` and `/healthz` |
 
-Images published by `docker-publish.yml` are tagged
-`ghcr.io/<owner>/queueless-backend` and `ghcr.io/<owner>/queueless-frontend`.
-
-### Lab server deployment
-
-The team's lab PC (Ubuntu with Docker, no sudo) runs a GitHub self-hosted
-runner labelled `queueless-lab`. Setup steps, required secrets and
-troubleshooting are in [docs/lab-server-setup.md](docs/lab-server-setup.md).
+The app is served at http://10.50.80.174:8082. Setup steps, credentials and
+troubleshooting are in [docs/jenkins-setup.md](docs/jenkins-setup.md).
 
 ## Future DevOps Phases
 
