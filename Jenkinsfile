@@ -10,7 +10,7 @@
 //         → Push to Docker Hub (optional) → Deploy → Smoke test
 //
 // Ports on the lab PC (Jenkins + Rootless Docker lab guide):
-//   Jenkins       8080 / 8081 (given by the instructor)
+//   Jenkins       8080
 //   QueueLess app 8082        (Rootless Docker cannot bind ports below 1024)
 //
 // Setup (credentials, job, agent): docs/jenkins-setup.md
@@ -36,7 +36,7 @@ pipeline {
     booleanParam(name: 'DEPLOY', defaultValue: true,
       description: 'Deploy the stack on this agent after the images are built.')
     string(name: 'FRONTEND_PORT', defaultValue: '8082',
-      description: 'Host port for the app. Keep it >= 1024 and different from the Jenkins port.')
+      description: 'Host port for the app. Keep it >= 1024 and not 8080 (Jenkins).')
     string(name: 'CLIENT_ORIGIN', defaultValue: 'http://10.50.80.174:8082',
       description: 'URL the browser uses to open the app (CORS origin). Must match FRONTEND_PORT.')
   }

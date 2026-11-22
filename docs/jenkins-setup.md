@@ -8,13 +8,13 @@ This file starts where that guide ends.
 | Item | Value |
 | --- | --- |
 | Lab PC | `10.50.80.174` (Linux account `user`, no sudo) |
-| Jenkins | `http://10.50.80.174:<JENKINS_PORT>` (8080 or 8081, given by the instructor) |
+| Jenkins | `http://10.50.80.174:8080` |
 | Agent node / label | `rootless-user-agent` / `rootless-docker` |
 | Docker | Rootless Docker (`docker context show` → `rootless`) |
 | QueueLess app | **`http://10.50.80.174:8082`** (Compose project `queueless-prod`) |
 
 Port 8082 follows the lab guide: Rootless Docker cannot use host ports below
-1024, and 8080/8081 belong to Jenkins.
+1024, and 8080 belongs to Jenkins.
 
 > The awesome-compose test from step 5 of the lab guide also used 8082. Stop it
 > first: `cd ~/Desktop/docker-test/awesome-compose/react-express-mysql && docker compose down`.
@@ -115,7 +115,7 @@ reach the campus network).
 | --- | --- | --- |
 | `PUSH_IMAGES` | off | Push images to Docker Hub |
 | `DEPLOY` | on | Deploy and smoke test on the lab PC |
-| `FRONTEND_PORT` | `8082` | Host port of the app (≥ 1024, not the Jenkins port) |
+| `FRONTEND_PORT` | `8082` | Host port of the app (≥ 1024, not 8080 — that is Jenkins) |
 | `CLIENT_ORIGIN` | `http://10.50.80.174:8082` | Browser URL; must match the port |
 
 ## 5. Evidence for the report
