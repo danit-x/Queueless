@@ -79,7 +79,7 @@ export default function Home() {
         </Link>
       </section>
 
-      <footer className="hm-footer">© {new Date().getFullYear()} QueueLess</footer>
+      <footer className="hm-footer">© {new Date().getFullYear()} QueueLess · Deployed by Jenkins CI/CD</footer>
     </div>
   );
 }
