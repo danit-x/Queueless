@@ -23,9 +23,15 @@ Port 8082 follows the lab guide: Rootless Docker cannot use host ports below
 
 ## What the pipeline does
 
+The work is split in three parts (lecturer's order):
+
+1. **CI** — `Jenkinsfile` (this job): test and build images. ✅ now
+2. **Docker Hub** — push the images. Next.
+3. **CD** — a second Jenkins pipeline that deploys. After that.
+
 ```
-Checkout → Check tools → ┬ Backend tests  ┬ → Build images → Push to Docker Hub → Deploy → Smoke test
-                         └ Frontend build ┘                    (optional)
+Checkout → Check tools → ┬ Backend tests  ┬ → Build images
+                         └ Frontend build ┘
 ```
 
 | Stage | What happens |
@@ -35,9 +41,6 @@ Checkout → Check tools → ┬ Backend tests  ┬ → Build images → Push to
 | Backend tests | Starts a throwaway `postgres:16-alpine`, applies `database/schema.sql`, runs `npm ci`, `npm run check`, `npm test` inside `node:20-alpine`, then removes the database. |
 | Frontend build | `npm ci && npm run build` inside `node:20-alpine`; `frontend/dist` is archived on the build page. |
 | Build images | `docker build` for `queueless-backend` and `queueless-frontend`, tagged `:<build tag>` and `:latest`. |
-| Push to Docker Hub | Only when `PUSH_IMAGES` is ticked: log in with the Jenkins credential, push `:<build tag>` and `:latest`, log out. |
-| Deploy | Starts the database, sets its password from the Jenkins credential, applies the schema, recreates backend and frontend with the new images. |
-| Smoke test | Calls `/api/health` and `/healthz` through nginx until it gets `"status":"ok"`. |
 
 No Node.js is needed on the lab PC: everything Node-related runs in containers.
 
@@ -68,7 +71,7 @@ Manage Jenkins → Nodes → `rootless-user-agent` must be online. If it is
 offline (after logout or reboot), start it again from `~/jenkins-agent` with
 the `java -jar agent.jar …` command shown on the node page (lab guide step 4.3).
 
-## 2. Add the credentials
+## 2. Add the credentials (needed later for Docker Hub and CD, not for CI)
 
 Manage Jenkins → Credentials → System → Global credentials → **Add Credentials**.
 

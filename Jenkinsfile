@@ -1,19 +1,17 @@
-// QueueLess — Jenkins declarative pipeline (Groovy). This is the project's
-// only CI/CD pipeline.
+// QueueLess — CI pipeline (Jenkins declarative pipeline, Groovy).
+//
+// Continuous Integration only: test the code and build the Docker images.
+// It does NOT deploy; deployment will be a separate CD pipeline.
 //
 // Runs on the lab PC's Jenkins agent (label "rootless-docker"), which uses
 // Rootless Docker as the Linux account "user": no sudo, no docker group.
 // Node.js is NOT needed on the agent; tests and the frontend build run inside
-// node:20-alpine containers.
+// node:20-alpine containers. No host ports are used, so CI never clashes
+// with containers already running on the lab PC.
 //
 // Stages: Checkout → Check tools → Test & build (parallel) → Build images
-//         → Push to Docker Hub (optional) → Deploy → Smoke test
 //
-// Ports on the lab PC (Jenkins + Rootless Docker lab guide):
-//   Jenkins       8080
-//   QueueLess app 8082        (Rootless Docker cannot bind ports below 1024)
-//
-// Setup (credentials, job, agent): docs/jenkins-setup.md
+// Setup: docs/jenkins-setup.md
 
 pipeline {
   agent { label 'rootless-docker' }
@@ -30,28 +28,12 @@ pipeline {
     pollSCM('H/5 * * * *')
   }
 
-  parameters {
-    booleanParam(name: 'PUSH_IMAGES', defaultValue: false,
-      description: 'Push both images to Docker Hub (needs the dockerhub-credentials credential).')
-    booleanParam(name: 'DEPLOY', defaultValue: true,
-      description: 'Deploy the stack on this agent after the images are built.')
-    string(name: 'FRONTEND_PORT', defaultValue: '8082',
-      description: 'Host port for the app. Keep it >= 1024 and not 8080 (Jenkins).')
-    string(name: 'CLIENT_ORIGIN', defaultValue: 'http://10.50.80.174:8082',
-      description: 'URL the browser uses to open the app (CORS origin). Must match FRONTEND_PORT.')
-  }
-
   environment {
-    // Docker Compose reads this instead of a -f flag. The file names the
-    // project "queueless-prod" (containers queueless-prod-*).
-    COMPOSE_FILE  = 'docker-compose.prod.yml'
-    FRONTEND_PORT = "${params.FRONTEND_PORT}"
-    CLIENT_ORIGIN = "${params.CLIENT_ORIGIN}"
     // Throwaway test database, unique per build so builds never share state.
-    TEST_NET      = "ql-test-net-${env.BUILD_NUMBER}"
-    TEST_DB       = "ql-test-db-${env.BUILD_NUMBER}"
+    TEST_NET  = "ql-test-net-${env.BUILD_NUMBER}"
+    TEST_DB   = "ql-test-db-${env.BUILD_NUMBER}"
     // Named volume that keeps npm's download cache between builds.
-    NPM_CACHE     = 'queueless-jenkins-npm-cache'
+    NPM_CACHE = 'queueless-jenkins-npm-cache'
   }
 
   stages {
@@ -74,7 +56,6 @@ pipeline {
           whoami
           docker context show
           docker info --format 'Docker {{.ServerVersion}}, security: {{.SecurityOptions}}'
-          docker compose version
         '''
       }
     }
@@ -138,8 +119,7 @@ pipeline {
 
     stage('Build images') {
       steps {
-        // ":latest" is what docker-compose.prod.yml runs; the build tag keeps
-        // a traceable name for this exact commit.
+        // ":latest" plus a build tag that names this exact commit.
         sh '''
           docker build --pull --target runtime \
             -t "queueless-backend:$IMAGE_TAG" -t queueless-backend:latest ./backend
@@ -150,101 +130,9 @@ pipeline {
         '''
       }
     }
-
-    stage('Push to Docker Hub') {
-      when { expression { params.PUSH_IMAGES } }
-      steps {
-        // Username + access token from Docker Hub, stored in Jenkins as a
-        // "Username with password" credential. Jenkins masks it in the log.
-        withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials',
-                                          usernameVariable: 'DOCKERHUB_USER',
-                                          passwordVariable: 'DOCKERHUB_TOKEN')]) {
-          sh '''
-            echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USER" --password-stdin
-            for app in backend frontend; do
-              for tag in "$IMAGE_TAG" latest; do
-                docker tag "queueless-$app:$IMAGE_TAG" "$DOCKERHUB_USER/queueless-$app:$tag"
-                docker push "$DOCKERHUB_USER/queueless-$app:$tag"
-              done
-            done
-          '''
-        }
-      }
-      post {
-        always { sh 'docker logout || true' }
-      }
-    }
-
-    stage('Deploy') {
-      when { expression { params.DEPLOY } }
-      steps {
-        withCredentials([string(credentialsId: 'queueless-postgres-password', variable: 'POSTGRES_PASSWORD'),
-                         string(credentialsId: 'queueless-jwt-secret', variable: 'JWT_SECRET')]) {
-          sh '''
-            [ ${#JWT_SECRET} -ge 32 ] || { echo "queueless-jwt-secret must be at least 32 characters"; exit 1; }
-
-            docker compose up -d --wait db
-
-            # Postgres keeps the password from when its volume was first
-            # created. Set it to the Jenkins credential on every deploy, so a
-            # changed credential (or an old volume) cannot lock the API out.
-            # Runs over the container's local socket, which needs no password;
-            # the value comes from an environment variable, not the command line.
-            docker compose exec -T -e NEW_DB_PASSWORD="$POSTGRES_PASSWORD" db \
-              psql -v ON_ERROR_STOP=1 -q -U postgres -d queueless <<'SQL'
-\\getenv new_pw NEW_DB_PASSWORD
-ALTER USER postgres WITH PASSWORD :'new_pw';
-SQL
-            echo "Database password synced"
-
-            # schema.sql is idempotent; apply it before the new backend starts.
-            docker compose exec -T db \
-              psql -v ON_ERROR_STOP=1 --single-transaction -q \
-              -U postgres -d queueless < database/schema.sql
-            echo "Schema applied"
-
-            # Images were built in the previous stage, so never build here.
-            docker compose up -d --no-build --force-recreate --remove-orphans backend frontend
-          '''
-        }
-      }
-    }
-
-    stage('Smoke test') {
-      when { expression { params.DEPLOY } }
-      steps {
-        sh '''
-          for i in $(seq 1 30); do
-            body=$(curl -fsS "http://127.0.0.1:$FRONTEND_PORT/api/health" 2>/dev/null || true)
-            if echo "$body" | grep -q '"status":"ok"'; then
-              echo "$body"
-              echo "App is healthy at $CLIENT_ORIGIN (attempt $i)"
-              curl -fsS -o /dev/null -w "Frontend /healthz: HTTP %{http_code}\\n" "http://127.0.0.1:$FRONTEND_PORT/healthz"
-              exit 0
-            fi
-            sleep 5
-          done
-          echo "App did not become healthy in time"
-          exit 1
-        '''
-      }
-    }
   }
 
   post {
-    always {
-      // Compose needs the secrets only to read the file; dummy values are fine for ps/logs.
-      sh '''
-        export POSTGRES_PASSWORD=unused JWT_SECRET=unused-unused-unused-unused-unused
-        docker compose ps || true
-      '''
-    }
-    failure {
-      sh '''
-        export POSTGRES_PASSWORD=unused JWT_SECRET=unused-unused-unused-unused-unused
-        docker compose logs --no-color --tail=200 || true
-      '''
-    }
     success {
       // Keep this build's tagged images (and :latest); remove older build tags.
       sh '''
@@ -254,7 +142,7 @@ SQL
           | xargs -r docker rmi >/dev/null 2>&1 || true
         docker image prune -f >/dev/null
       '''
-      echo "QueueLess ${env.IMAGE_TAG} built${params.DEPLOY ? " and running at ${params.CLIENT_ORIGIN}" : ''}"
+      echo "CI passed: images queueless-backend:${env.IMAGE_TAG} and queueless-frontend:${env.IMAGE_TAG}"
     }
   }
 }
