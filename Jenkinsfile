@@ -2,6 +2,8 @@
 //
 // Continuous Integration only: test the code and build the Docker images.
 // It does NOT deploy; deployment will be a separate CD pipeline.
+// Images are pushed to Docker Hub as <user>/queueless-backend and
+// <user>/queueless-frontend, tagged jenkins-<build>-<commit> and latest.
 //
 // Runs on the lab PC's Jenkins agent (label "rootless-docker"), which uses
 // Rootless Docker as the Linux account "user": no sudo, no docker group.
@@ -10,6 +12,7 @@
 // with containers already running on the lab PC.
 //
 // Stages: Checkout → Check tools → Test & build (parallel) → Build images
+//         → Push to Docker Hub
 //
 // Setup: docs/jenkins-setup.md
 
@@ -130,6 +133,30 @@ pipeline {
         '''
       }
     }
+
+    stage('Push to Docker Hub') {
+      steps {
+        // Jenkins credential "dockerhub-credentials" (Username with password):
+        // Docker Hub username + access token. Jenkins masks both in the log.
+        // The token goes in through stdin, never on the command line.
+        withCredentials([usernamePassword(credentialsId: 'dockerhub-credentials',
+                                          usernameVariable: 'DOCKERHUB_USER',
+                                          passwordVariable: 'DOCKERHUB_TOKEN')]) {
+          sh '''
+            echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USER" --password-stdin
+            for app in backend frontend; do
+              for tag in "$IMAGE_TAG" latest; do
+                docker tag "queueless-$app:$IMAGE_TAG" "$DOCKERHUB_USER/queueless-$app:$tag"
+                docker push "$DOCKERHUB_USER/queueless-$app:$tag"
+              done
+            done
+          '''
+        }
+      }
+      post {
+        always { sh 'docker logout || true' }
+      }
+    }
   }
 
   post {
@@ -142,7 +169,7 @@ pipeline {
           | xargs -r docker rmi >/dev/null 2>&1 || true
         docker image prune -f >/dev/null
       '''
-      echo "CI passed: images queueless-backend:${env.IMAGE_TAG} and queueless-frontend:${env.IMAGE_TAG}"
+      echo "CI passed: queueless-backend and queueless-frontend ${env.IMAGE_TAG} built and pushed to Docker Hub"
     }
   }
 }
