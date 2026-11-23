@@ -27,7 +27,7 @@ The work is split in three parts (lecturer's order):
 
 1. **CI** — `Jenkinsfile` (this job): test and build images. ✅
 2. **Docker Hub** — the same job pushes the images (needs `dockerhub-credentials`). ✅
-3. **CD** — a second Jenkins pipeline that deploys. After that.
+3. **CD** — `Jenkinsfile.cd`, a second job `queueless-cd`: pulls the images from Docker Hub, deploys, smoke-tests. See "CD pipeline" below.
 
 ```
 Checkout → Check tools → ┬ Backend tests  ┬ → Build images → Push to Docker Hub
@@ -131,6 +131,22 @@ reach the campus network).
 - If pushed: the two repositories on Docker Hub with the `jenkins-…` and `latest` tags.
 
 Do not screenshot the agent secret or any credential value.
+
+## CD pipeline (`queueless-cd`)
+
+```
+Docker Hub ─pull─▶ Deploy (db password + schema + backend/frontend) ─▶ Smoke test
+```
+
+1. Credentials (Secret text): `queueless-postgres-password` and `queueless-jwt-secret` (≥ 32 chars).
+2. New Item → `queueless-cd` → Pipeline → Pipeline script from SCM → same repo, `*/main`,
+   **Script Path `Jenkinsfile.cd`**.
+3. Build Now once (registers parameters and the trigger). After that it runs
+   automatically whenever `queueless-ci` succeeds.
+4. Roll back: Build with Parameters → `IMAGE_TAG` = an older `jenkins-…` tag.
+
+App: `http://10.50.80.174:8082`. The old `queueless-prod-*` containers on 8081 are
+replaced by the first CD run (the database volume is kept).
 
 ## Useful commands on the lab PC
 

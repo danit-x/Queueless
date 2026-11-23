@@ -27,7 +27,8 @@ services:
       context: ./backend
       dockerfile: Dockerfile
       target: runtime
-    image: queueless-backend:latest
+    # CD sets BACKEND_IMAGE to the Docker Hub image, e.g. danit778/queueless-backend:latest
+    image: ${BACKEND_IMAGE:-queueless-backend:latest}
     container_name: queueless-prod-backend
     restart: unless-stopped
     init: true
@@ -63,7 +64,8 @@ services:
       target: runtime
       args:
         VITE_API_URL: /api
-    image: queueless-frontend:latest
+    # CD sets FRONTEND_IMAGE to the Docker Hub image, e.g. danit778/queueless-frontend:latest
+    image: ${FRONTEND_IMAGE:-queueless-frontend:latest}
     container_name: queueless-prod-frontend
     restart: unless-stopped
     init: true
