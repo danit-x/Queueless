@@ -25,12 +25,12 @@ Port 8082 follows the lab guide: Rootless Docker cannot use host ports below
 
 The work is split in three parts (lecturer's order):
 
-1. **CI** — `Jenkinsfile` (this job): test and build images. ✅ now
-2. **Docker Hub** — push the images. Next.
+1. **CI** — `Jenkinsfile` (this job): test and build images. ✅
+2. **Docker Hub** — the same job pushes the images (needs `dockerhub-credentials`). ✅
 3. **CD** — a second Jenkins pipeline that deploys. After that.
 
 ```
-Checkout → Check tools → ┬ Backend tests  ┬ → Build images
+Checkout → Check tools → ┬ Backend tests  ┬ → Build images → Push to Docker Hub
                          └ Frontend build ┘
 ```
 
@@ -41,6 +41,7 @@ Checkout → Check tools → ┬ Backend tests  ┬ → Build images
 | Backend tests | Starts a throwaway `postgres:16-alpine`, applies `database/schema.sql`, runs `npm ci`, `npm run check`, `npm test` inside `node:20-alpine`, then removes the database. |
 | Frontend build | `npm ci && npm run build` inside `node:20-alpine`; `frontend/dist` is archived on the build page. |
 | Build images | `docker build` for `queueless-backend` and `queueless-frontend`, tagged `:<build tag>` and `:latest`. |
+| Push to Docker Hub | Log in with `dockerhub-credentials`, push `<user>/queueless-*:<build tag>` and `:latest`, log out. |
 
 No Node.js is needed on the lab PC: everything Node-related runs in containers.
 
